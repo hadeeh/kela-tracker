@@ -100,7 +100,7 @@ export function VoteModal({ open, payload, updates, onVote, votedChoice }: Props
                   onClick={() => onVote("kela")}
                 >
                   <span className="text-2xl">🍌</span>
-                  <span>KELA</span>
+                  <span>Kelaaaa</span>
                 </Button>
                 <Button
                   size="lg"

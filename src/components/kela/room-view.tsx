@@ -389,6 +389,83 @@ export function RoomView({ room, me }: Props) {
           </CardContent>
         </Card>
 
+        {/* Kela Leaderboard */}
+        {members.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                🏆 Kela Leaderboard
+              </CardTitle>
+              <CardDescription>
+                Who&apos;s eaten the most kela? Per-person breakdown of kelas eaten, rate, and total fine due.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const ranked = members
+                  .map((m) => {
+                    const guilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela").length;
+                    const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
+                    return {
+                      ...m,
+                      guilty,
+                      totalAccused,
+                      totalFine: guilty * m.ratePerKela,
+                      isMe: m.id === me.memberId,
+                    };
+                  })
+                  .sort((a, b) => {
+                    // Sort by guilty desc, then totalFine desc
+                    if (b.guilty !== a.guilty) return b.guilty - a.guilty;
+                    return b.totalFine - a.totalFine;
+                  });
+
+                if (ranked.every((r) => r.guilty === 0)) {
+                  return (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <div className="text-3xl mb-1">🕊️</div>
+                      <p className="text-sm font-medium">No one has eaten kela yet. Peaceful.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    {ranked.map((m, idx) => {
+                      const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}.`;
+                      return (
+                        <div
+                          key={m.id}
+                          className={`flex items-center gap-3 rounded-lg p-3 border ${
+                            m.isMe ? "bg-yellow-50 border-yellow-300" : "bg-card border-border"
+                          }`}
+                        >
+                          <div className="text-xl font-bold w-8 text-center flex-shrink-0">{medal}</div>
+                          <Avatar className="h-9 w-9 bg-yellow-200 text-yellow-900 flex-shrink-0">
+                            <AvatarFallback className="text-xs">{m.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm truncate">
+                              {m.name} {m.isMe && <span className="text-xs text-yellow-700 font-normal">(you)</span>}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {m.guilty} kela{m.guilty === 1 ? "" : "s"} · PKR {m.ratePerKela}/kela
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <div className="font-bold text-sm text-red-700">PKR {m.totalFine.toLocaleString()}</div>
+                            <div className="text-[10px] text-muted-foreground">fine due</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Members grid */}
         <Card>
           <CardHeader>
@@ -397,7 +474,7 @@ export function RoomView({ room, me }: Props) {
               <Badge variant="secondary" className="ml-1">{members.length}</Badge>
             </CardTitle>
             <CardDescription>
-              Spot someone eating kela? Click <b>Accuse of Kela</b> to start a vote. Everyone except the accused will get a popup to vote 🍌 or 🍎.
+              Spot someone eating kela? Click <b>Kelaaaa</b> to start a vote. Everyone except the accused will get a popup to vote 🍌 or 🍎.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -416,6 +493,7 @@ export function RoomView({ room, me }: Props) {
                 {members.filter((m) => m.id !== me.memberId).map((m) => {
                   const guilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela").length;
                   const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
+                  const totalFine = guilty * m.ratePerKela;
                   return (
                     <div key={m.id} className="rounded-xl border bg-card p-4 flex flex-col gap-3">
                       <div className="flex items-center gap-3">
@@ -427,20 +505,30 @@ export function RoomView({ room, me }: Props) {
                           <div className="text-xs text-muted-foreground truncate">{m.email}</div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-900 hover:bg-yellow-100">
-                          PKR {m.ratePerKela}/kela
-                        </Badge>
-                        <span className="text-muted-foreground">
-                          {guilty} guilty / {totalAccused} accused
-                        </span>
+                      {/* Per-person kela stats */}
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-2">
+                          <div className="text-lg font-bold text-yellow-900">{guilty}</div>
+                          <div className="text-[10px] text-yellow-700 font-medium leading-tight">Kelas eaten</div>
+                        </div>
+                        <div className="rounded-lg bg-muted border p-2">
+                          <div className="text-lg font-bold">PKR {m.ratePerKela}</div>
+                          <div className="text-[10px] text-muted-foreground font-medium leading-tight">Rate/kela</div>
+                        </div>
+                        <div className="rounded-lg bg-red-50 border border-red-200 p-2">
+                          <div className="text-lg font-bold text-red-700">PKR {totalFine.toLocaleString()}</div>
+                          <div className="text-[10px] text-red-600 font-medium leading-tight">Fine due</div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground text-center">
+                        {totalAccused} accusation{totalAccused === 1 ? "" : "s"} total
                       </div>
                       <Button
                         size="sm"
                         className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-950"
                         onClick={() => { setAccuseTarget(m); setAccuseReason(""); }}
                       >
-                        🍌 Accuse of Kela
+                        🍌 Kelaaaa
                       </Button>
                     </div>
                   );
