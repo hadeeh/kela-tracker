@@ -11,18 +11,19 @@ const io = new Server(httpServer, {
 
 // ---- Config -------------------------------------------------------------
 const PORT = 3003
-const VOTE_DURATION_MS = 30_000 // 30s voting window
+const VOTE_DURATION_MS = 30_000
 const NEXTAUTH_BASE = process.env.NEXTAUTH_BASE || 'http://localhost:3000'
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET || 'kela-internal-2026'
 
 // ---- In-memory state ----------------------------------------------------
-// socket.id -> { userId, userName }
-const sockets = new Map<string, { userId: string; userName: string }>()
-// userId -> Set<socket.id>  (a user may have multiple tabs)
-const userSockets = new Map<string, Set<string>>()
-// incidentId -> { accusedId, accusedById, accusedName, reason, startedAt, votes: Map<voterId,'kela'|'saeb'> }
+// socket.id -> { roomId, memberId, memberName }
+const sockets = new Map<string, { roomId: string; memberId: string; memberName: string }>()
+// roomId -> Map<memberId, Set<socket.id>>  (multi-tab aware)
+const roomMembers = new Map<string, Map<string, Set<string>>>()
+// incidentId -> active vote state
 const activeVotes = new Map<string, {
   incidentId: string
+  roomId: string
   accusedId: string
   accusedName: string
   accusedById: string
@@ -31,7 +32,7 @@ const activeVotes = new Map<string, {
   startedAt: number
   votesYes: number
   votesNo: number
-  voters: Set<string> // voterIds who already voted
+  voters: Set<string>
   timer: NodeJS.Timeout
 }>()
 
@@ -40,8 +41,10 @@ function log(msg: string) {
 }
 
 // ---- Helpers ------------------------------------------------------------
-function emitToUser(userId: string, event: string, payload: any) {
-  const set = userSockets.get(userId)
+function emitToRoomMember(roomId: string, memberId: string, event: string, payload: any) {
+  const members = roomMembers.get(roomId)
+  if (!members) return
+  const set = members.get(memberId)
   if (!set) return
   for (const sid of set) {
     const s = io.sockets.sockets.get(sid)
@@ -49,15 +52,26 @@ function emitToUser(userId: string, event: string, payload: any) {
   }
 }
 
-function emitToAllExcept(userId: string, event: string, payload: any) {
-  for (const [uid] of userSockets) {
-    if (uid === userId) continue
-    emitToUser(uid, event, payload)
+function emitToRoomExcept(roomId: string, excludeMemberId: string, event: string, payload: any) {
+  const members = roomMembers.get(roomId)
+  if (!members) return
+  for (const [mid] of members) {
+    if (mid === excludeMemberId) continue
+    emitToRoomMember(roomId, mid, event, payload)
   }
 }
 
-function broadcastOnlineCount() {
-  io.emit('online-count', { count: userSockets.size })
+function emitToRoom(roomId: string, event: string, payload: any) {
+  const members = roomMembers.get(roomId)
+  if (!members) return
+  for (const mid of members) emitToRoomMember(roomId, mid, event, payload)
+}
+
+function broadcastRoomOnlineCount(roomId: string) {
+  const members = roomMembers.get(roomId)
+  if (!members) return
+  const count = members.size
+  emitToRoom(roomId, 'online-count', { roomId, count })
 }
 
 // ---- Internal HTTP call helpers ----------------------------------------
@@ -65,10 +79,7 @@ async function callNextAuth(path: string, method: 'POST' | 'PUT', body: any) {
   try {
     const res = await fetch(`${NEXTAUTH_BASE}${path}`, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-internal-secret': INTERNAL_SECRET,
-      },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
       body: JSON.stringify(body),
     })
     if (!res.ok) {
@@ -83,14 +94,13 @@ async function callNextAuth(path: string, method: 'POST' | 'PUT', body: any) {
   }
 }
 
-async function createIncident(accusedId: string, accusedById: string, reason: string | null) {
-  const r = await callNextAuth('/api/vote-start', 'POST', { accusedId, accusedById, reason })
+async function createIncident(roomId: string, accusedId: string, accusedById: string, reason: string | null) {
+  const r = await callNextAuth('/api/vote-start', 'POST', { roomId, accusedId, accusedById, reason })
   return r?.incident ?? null
 }
 
 async function persistVote(incidentId: string, voterId: string, choice: 'kela' | 'saeb') {
-  const r = await callNextAuth('/api/vote-cast', 'POST', { incidentId, voterId, choice })
-  return r
+  return await callNextAuth('/api/vote-cast', 'POST', { incidentId, voterId, choice })
 }
 
 async function finalizeIncident(incidentId: string, verdict: 'kela' | 'saeb' | 'tie') {
@@ -99,23 +109,22 @@ async function finalizeIncident(incidentId: string, verdict: 'kela' | 'saeb' | '
 
 // ---- Vote lifecycle -----------------------------------------------------
 async function startVote(payload: {
+  roomId: string
   accusedId: string
   accusedName: string
   accusedById: string
   accusedByName: string
   reason: string | null
 }) {
-  // Disallow multiple simultaneous votes involving the same accused
+  // Disallow simultaneous votes in the same room
   for (const v of activeVotes.values()) {
-    if (v.accusedId === payload.accusedId || v.accusedById === payload.accusedById) {
-      return { error: 'Another vote is already in progress.' }
+    if (v.roomId === payload.roomId) {
+      return { error: 'A vote is already in progress in this room. Wait for it to end.' }
     }
   }
 
-  const incident = await createIncident(payload.accusedId, payload.accusedById, payload.reason)
-  if (!incident) {
-    return { error: 'Failed to create incident.' }
-  }
+  const incident = await createIncident(payload.roomId, payload.accusedId, payload.accusedById, payload.reason)
+  if (!incident) return { error: 'Failed to create incident.' }
 
   const incidentId = incident.id
   const startedAt = Date.now()
@@ -125,6 +134,7 @@ async function startVote(payload: {
 
   activeVotes.set(incidentId, {
     incidentId,
+    roomId: payload.roomId,
     accusedId: payload.accusedId,
     accusedName: payload.accusedName,
     accusedById: payload.accusedById,
@@ -138,8 +148,9 @@ async function startVote(payload: {
   })
 
   // Notify everyone EXCEPT the accused.
-  emitToAllExcept(payload.accusedId, 'vote-started', {
+  emitToRoomExcept(payload.roomId, payload.accusedId, 'vote-started', {
     incidentId,
+    roomId: payload.roomId,
     accusedId: payload.accusedId,
     accusedName: payload.accusedName,
     accusedById: payload.accusedById,
@@ -150,7 +161,7 @@ async function startVote(payload: {
   })
 
   // Notify the accused that they are being judged (cannot vote).
-  emitToUser(payload.accusedId, 'accused', {
+  emitToRoomMember(payload.roomId, payload.accusedId, 'accused', {
     incidentId,
     accusedByName: payload.accusedByName,
     reason: payload.reason,
@@ -158,7 +169,7 @@ async function startVote(payload: {
     endsAt,
   })
 
-  log(`vote started: incident=${incidentId} accused=${payload.accusedName} by=${payload.accusedByName}`)
+  log(`vote started: room=${payload.roomId} incident=${incidentId} accused=${payload.accusedName} by=${payload.accusedByName}`)
   return { ok: true, incidentId, endsAt }
 }
 
@@ -168,31 +179,36 @@ async function castVote(socket: Socket, payload: { incidentId: string; choice: '
 
   const v = activeVotes.get(payload.incidentId)
   if (!v) return { error: 'No active vote with that id' }
-  if (v.accusedId === ctx.userId) return { error: 'Accused cannot vote' }
-  if (v.voters.has(ctx.userId)) return { error: 'Already voted' }
+  if (v.roomId !== ctx.roomId) return { error: 'Wrong room' }
+  if (v.accusedId === ctx.memberId) return { error: 'Accused cannot vote' }
+  if (v.voters.has(ctx.memberId)) return { error: 'Already voted' }
 
-  const r = await persistVote(v.incidentId, ctx.userId, payload.choice)
+  const r = await persistVote(v.incidentId, ctx.memberId, payload.choice)
   if (!r) return { error: 'Failed to record vote' }
 
-  v.voters.add(ctx.userId)
+  v.voters.add(ctx.memberId)
   if (payload.choice === 'kela') v.votesYes++
   else v.votesNo++
 
-  // Broadcast live tally update to EVERYONE (accused sees it too).
-  io.emit('vote-update', {
+  // Broadcast live tally + which choice was just cast (so clients can play sounds).
+  emitToRoom(v.roomId, 'vote-update', {
     incidentId: v.incidentId,
     votesYes: v.votesYes,
     votesNo: v.votesNo,
     voterCount: v.voters.size,
+    lastChoice: payload.choice,
+    voterName: ctx.memberName,
   })
 
-  // Check if all eligible online users have voted.
-  // Eligible = every online user except the accused.
+  // Check if all eligible online members have voted.
+  const members = roomMembers.get(v.roomId)
   let eligibleOnline = 0
-  for (const uid of userSockets.keys()) {
-    if (uid !== v.accusedId) eligibleOnline++
+  if (members) {
+    for (const mid of members.keys()) {
+      if (mid !== v.accusedId) eligibleOnline++
+    }
   }
-  if (v.voters.size >= eligibleOnline && eligibleOnline > 0) {
+  if (eligibleOnline > 0 && v.voters.size >= eligibleOnline) {
     clearTimeout(v.timer)
     endVote(v.incidentId, 'all-voted')
   }
@@ -213,8 +229,9 @@ async function endVote(incidentId: string, reason: 'timeout' | 'all-voted' | 'ma
 
   await finalizeIncident(incidentId, verdict)
 
-  io.emit('vote-ended', {
+  emitToRoom(v.roomId, 'vote-ended', {
     incidentId,
+    roomId: v.roomId,
     accusedId: v.accusedId,
     accusedName: v.accusedName,
     accusedByName: v.accusedByName,
@@ -232,18 +249,28 @@ async function endVote(incidentId: string, reason: 'timeout' | 'all-voted' | 'ma
 io.on('connection', (socket) => {
   log(`connected: ${socket.id}`)
 
-  socket.on('identify', (data: { userId: string; userName: string }) => {
-    if (!data?.userId || !data?.userName) return
-    sockets.set(socket.id, { userId: data.userId, userName: data.userName })
+  socket.on('identify', (data: { roomId: string; memberId: string; memberName: string }) => {
+    if (!data?.roomId || !data?.memberId || !data?.memberName) return
+    sockets.set(socket.id, {
+      roomId: data.roomId,
+      memberId: data.memberId,
+      memberName: data.memberName,
+    })
 
-    let set = userSockets.get(data.userId)
+    let members = roomMembers.get(data.roomId)
+    if (!members) {
+      members = new Map()
+      roomMembers.set(data.roomId, members)
+    }
+    let set = members.get(data.memberId)
     if (!set) {
       set = new Set()
-      userSockets.set(data.userId, set)
+      members.set(data.memberId, set)
     }
     set.add(socket.id)
-    broadcastOnlineCount()
-    log(`identified: ${socket.id} -> ${data.userName} (${data.userId})`)
+
+    broadcastRoomOnlineCount(data.roomId)
+    log(`identified: ${socket.id} -> room=${data.roomId} member=${data.memberName} (${data.memberId})`)
   })
 
   socket.on('start-vote', async (payload, ack) => {
@@ -253,10 +280,11 @@ io.on('connection', (socket) => {
       return
     }
     const result = await startVote({
+      roomId: ctx.roomId,
       accusedId: payload.accusedId,
       accusedName: payload.accusedName,
-      accusedById: ctx.userId,
-      accusedByName: ctx.userName,
+      accusedById: ctx.memberId,
+      accusedByName: ctx.memberName,
       reason: payload.reason ?? null,
     })
     if (typeof ack === 'function') ack(result)
@@ -271,15 +299,18 @@ io.on('connection', (socket) => {
     const ctx = sockets.get(socket.id)
     if (ctx) {
       sockets.delete(socket.id)
-      const set = userSockets.get(ctx.userId)
-      if (set) {
-        set.delete(socket.id)
-        if (set.size === 0) {
-          userSockets.delete(ctx.userId)
-          broadcastOnlineCount()
+      const members = roomMembers.get(ctx.roomId)
+      if (members) {
+        const set = members.get(ctx.memberId)
+        if (set) {
+          set.delete(socket.id)
+          if (set.size === 0) {
+            members.delete(ctx.memberId)
+            broadcastRoomOnlineCount(ctx.roomId)
+          }
         }
       }
-      log(`disconnected: ${socket.id} (${ctx.userName})`)
+      log(`disconnected: ${socket.id} (${ctx.memberName})`)
     } else {
       log(`disconnected: ${socket.id} (anonymous)`)
     }

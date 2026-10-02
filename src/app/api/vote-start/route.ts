@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-// Internal endpoint to create an incident when a vote is initiated.
+// Internal endpoint called by the websocket service when a vote is initiated
+// to create the KelaIncident record.
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET || "kela-internal-2026";
 
 export async function POST(req: Request) {
@@ -12,28 +13,28 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { accusedId, accusedById, reason } = body as {
+    const { roomId, accusedId, accusedById, reason } = body as {
+      roomId: string;
       accusedId: string;
       accusedById: string;
       reason?: string;
     };
 
-    if (!accusedId || !accusedById) {
-      return NextResponse.json({ error: "accusedId and accusedById required" }, { status: 400 });
+    if (!roomId || !accusedId || !accusedById) {
+      return NextResponse.json({ error: "roomId, accusedId, accusedById required" }, { status: 400 });
     }
     if (accusedId === accusedById) {
       return NextResponse.json({ error: "Cannot accuse yourself" }, { status: 400 });
     }
 
-    const accused = await db.user.findUnique({ where: { id: accusedId } });
-    if (!accused) {
-      return NextResponse.json({ error: "Accused user not found" }, { status: 404 });
-    }
+    const accused = await db.roomMember.findFirst({ where: { id: accusedId, roomId } });
+    if (!accused) return NextResponse.json({ error: "Accused member not found" }, { status: 404 });
 
     const incident = await db.kelaIncident.create({
       data: {
+        roomId,
         userId: accusedId,
-        accusedBy: accusedById,
+        accusedById,
         reason: reason?.toString().slice(0, 200) || null,
       },
     });

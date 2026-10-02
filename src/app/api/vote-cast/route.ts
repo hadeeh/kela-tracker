@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-// Internal endpoint called by the websocket service to persist a vote.
-// Secured via a shared secret header.
+// Internal endpoints called by the websocket service.
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET || "kela-internal-2026";
 
+// POST — record a vote
 export async function POST(req: Request) {
   try {
     const secret = req.headers.get("x-internal-secret");
@@ -23,12 +23,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
-    const incident = await db.kelaIncident.findUnique({
-      where: { id: incidentId },
-    });
-    if (!incident) {
-      return NextResponse.json({ error: "Incident not found" }, { status: 404 });
-    }
+    const incident = await db.kelaIncident.findUnique({ where: { id: incidentId } });
+    if (!incident) return NextResponse.json({ error: "Incident not found" }, { status: 404 });
     if (incident.verdict !== "pending") {
       return NextResponse.json({ error: "Voting already closed" }, { status: 400 });
     }
@@ -36,11 +32,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Accused cannot vote" }, { status: 400 });
     }
 
-    // Create the vote (unique constraint protects against double-voting)
     try {
-      await db.vote.create({
-        data: { incidentId, voterId, choice },
-      });
+      await db.vote.create({ data: { incidentId, voterId, choice } });
     } catch (e: any) {
       if (e?.code === "P2002") {
         return NextResponse.json({ error: "Already voted" }, { status: 409 });
@@ -48,14 +41,13 @@ export async function POST(req: Request) {
       throw e;
     }
 
-    // Update counts
     const updated = await db.kelaIncident.update({
       where: { id: incidentId },
       data: {
         votesYes: { increment: choice === "kela" ? 1 : 0 },
         votesNo: { increment: choice === "saeb" ? 1 : 0 },
       },
-      select: { votesYes: true, votesNo: true, userId: true },
+      select: { votesYes: true, votesNo: true },
     });
 
     return NextResponse.json({ ok: true, votesYes: updated.votesYes, votesNo: updated.votesNo });
@@ -64,8 +56,7 @@ export async function POST(req: Request) {
   }
 }
 
-// Finalize an incident with a verdict (called by WS service after timer expires
-// or all eligible voters voted).
+// PUT — finalize verdict
 export async function PUT(req: Request) {
   try {
     const secret = req.headers.get("x-internal-secret");

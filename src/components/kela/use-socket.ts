@@ -5,6 +5,7 @@ import { io, Socket } from "socket.io-client";
 
 export type VoteStartedPayload = {
   incidentId: string;
+  roomId: string;
   accusedId: string;
   accusedName: string;
   accusedById: string;
@@ -27,10 +28,13 @@ export type VoteUpdatePayload = {
   votesYes: number;
   votesNo: number;
   voterCount: number;
+  lastChoice: "kela" | "saeb";
+  voterName: string;
 };
 
 export type VoteEndedPayload = {
   incidentId: string;
+  roomId: string;
   accusedId: string;
   accusedName: string;
   accusedByName: string;
@@ -49,17 +53,21 @@ type Handlers = {
   onOnlineCount?: (n: number) => void;
 };
 
-export function useSocket(userId: string | null, userName: string | null, handlers: Handlers) {
+export function useSocket(
+  roomId: string | null,
+  memberId: string | null,
+  memberName: string | null,
+  handlers: Handlers
+) {
   const socketRef = useRef<Socket | null>(null);
   const [connected, setConnected] = useState(false);
-  // Keep latest handlers without re-creating socket (update in effect to comply with React rules)
   const handlersRef = useRef(handlers);
   useEffect(() => {
     handlersRef.current = handlers;
   });
 
   useEffect(() => {
-    if (!userId || !userName) return;
+    if (!roomId || !memberId || !memberName) return;
 
     const s = io("/?XTransformPort=3003", {
       path: "/",
@@ -73,7 +81,7 @@ export function useSocket(userId: string | null, userName: string | null, handle
 
     s.on("connect", () => {
       setConnected(true);
-      s.emit("identify", { userId, userName });
+      s.emit("identify", { roomId, memberId, memberName });
     });
     s.on("disconnect", () => setConnected(false));
 
@@ -81,13 +89,13 @@ export function useSocket(userId: string | null, userName: string | null, handle
     s.on("accused", (p: AccusedPayload) => handlersRef.current.onAccused?.(p));
     s.on("vote-update", (p: VoteUpdatePayload) => handlersRef.current.onVoteUpdate?.(p));
     s.on("vote-ended", (p: VoteEndedPayload) => handlersRef.current.onVoteEnded?.(p));
-    s.on("online-count", (p: { count: number }) => handlersRef.current.onOnlineCount?.(p.count));
+    s.on("online-count", (p: { roomId: string; count: number }) => handlersRef.current.onOnlineCount?.(p.count));
 
     return () => {
       s.disconnect();
       socketRef.current = null;
     };
-  }, [userId, userName]);
+  }, [roomId, memberId, memberName]);
 
   const startVote = (payload: {
     accusedId: string;

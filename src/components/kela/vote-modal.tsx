@@ -44,7 +44,7 @@ export function VoteModal({ open, payload, updates, onVote, votedChoice }: Props
       <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="text-center text-xl flex items-center justify-center gap-2">
-            <span className="text-3xl">🍌</span>
+            <span className="text-3xl animate-pulse">🍌</span>
             <span>Kela Alert!</span>
           </DialogTitle>
           <DialogDescription className="text-center pt-1">

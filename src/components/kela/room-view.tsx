@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { signOut } from "next-auth/react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -19,91 +23,106 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, LogOut, Wifi, WifiOff, Settings2 } from "lucide-react";
+import { Loader2, LogOut, Wifi, WifiOff, Copy, Mail, Check, Users, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { useSocket, type VoteStartedPayload, type VoteUpdatePayload, type VoteEndedPayload, type AccusedPayload } from "./use-socket";
+import {
+  useSocket, type VoteStartedPayload, type VoteUpdatePayload, type VoteEndedPayload, type AccusedPayload,
+} from "./use-socket";
+import { useSounds } from "./use-sounds";
 import { VoteModal } from "./vote-modal";
 import { AccusedModal, ResultModal } from "./modals";
 
-type Me = { id: string; name: string; email: string; ratePerKela: number };
-type Friend = {
-  id: string;
-  name: string;
-  email: string;
-  ratePerKela: number;
-  createdAt: string;
-  _count: { incidents: number };
-};
-
+type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
+type Member = { id: string; name: string; email: string; ratePerKela: number; joinedAt: string };
 type Incident = {
   id: string;
   userId: string;
   reason: string | null;
-  accusedBy: string;
+  accusedById: string;
   votesYes: number;
   votesNo: number;
   verdict: string;
   createdAt: string;
   user: { id: string; name: string; email: string; ratePerKela: number };
+  accusedBy: { id: string; name: string };
   votes: { id: string; choice: string; voter: { id: string; name: string } }[];
 };
 
-export function Dashboard({ me }: { me: Me }) {
+type Me = { memberId: string; memberName: string; memberEmail: string };
+
+type Props = {
+  room: Room;
+  me: Me;
+};
+
+export function RoomView({ room, me }: Props) {
+  const router = useRouter();
+  const { play } = useSounds();
+
   // ---- Data state -------------------------------------------------------
-  const [friends, setFriends] = useState<Friend[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [myGuiltyCount, setMyGuiltyCount] = useState(0);
-  const [myFine, setMyFine] = useState(0);
   const [loadingData, setLoadingData] = useState(true);
   const [onlineCount, setOnlineCount] = useState(0);
 
   // ---- Settings state ---------------------------------------------------
-  const [rateInput, setRateInput] = useState(String(me.ratePerKela));
+  const [rateInput, setRateInput] = useState("50");
   const [savingRate, setSavingRate] = useState(false);
+  const [myRate, setMyRate] = useState(50);
 
-  // ---- Vote / accuse modal state ---------------------------------------
-  const [accuseTarget, setAccuseTarget] = useState<Friend | null>(null);
+  // ---- Invite dialog ----------------------------------------------------
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // ---- Accuse dialog ----------------------------------------------------
+  const [accuseTarget, setAccuseTarget] = useState<Member | null>(null);
   const [accuseReason, setAccuseReason] = useState("");
   const [startingVote, setStartingVote] = useState(false);
 
-  // Active vote modal (when I'm a voter)
+  // ---- Active vote modal (I'm a voter) ---------------------------------
   const [voteOpen, setVoteOpen] = useState(false);
   const [votePayload, setVotePayload] = useState<VoteStartedPayload | null>(null);
   const [voteUpdate, setVoteUpdate] = useState<VoteUpdatePayload | null>(null);
   const [votedChoice, setVotedChoice] = useState<"kela" | "saeb" | null>(null);
 
-  // Accused modal (when I am the accused)
+  // ---- Accused modal (I'm the accused) ---------------------------------
   const [accusedOpen, setAccusedOpen] = useState(false);
   const [accusedPayload, setAccusedPayload] = useState<AccusedPayload | null>(null);
 
-  // Result modal
+  // ---- Result modal -----------------------------------------------------
   const [resultOpen, setResultOpen] = useState(false);
   const [resultPayload, setResultPayload] = useState<VoteEndedPayload | null>(null);
 
-  // ---- Handlers for socket events --------------------------------------
+  // ---- Socket event handlers (with sounds) -----------------------------
   const onVoteStarted = useCallback((p: VoteStartedPayload) => {
-    // Skip if it's me being accused (we'll get 'accused' instead)
-    if (p.accusedId === me.id) return;
+    if (p.accusedId === me.memberId) return; // I'll get 'accused' instead
     setVotePayload(p);
     setVoteUpdate(null);
     setVotedChoice(null);
     setVoteOpen(true);
+    play("vote-start"); // 📣 Kelaaaa!
     toast.message(`🍌 Vote started against ${p.accusedName}!`);
-  }, [me.id]);
+  }, [me.memberId, play]);
 
   const onAccused = useCallback((p: AccusedPayload) => {
     setAccusedPayload(p);
     setAccusedOpen(true);
-  }, []);
+    play("vote-start"); // 📣 Kelaaaa!
+  }, [play]);
 
   const onVoteUpdate = useCallback((p: VoteUpdatePayload) => {
     setVoteUpdate(p);
-  }, []);
+    // Play kela-vote sound when someone votes kela (not for my own vote — handled in castVote)
+    if (p.lastChoice === "kela" && p.voterName !== me.memberName) {
+      play("kela-vote");
+    }
+  }, [me.memberName, play]);
 
   const onVoteEnded = useCallback((p: VoteEndedPayload) => {
-    // Close any open vote/accused modals for this incident
     setVoteOpen(false);
     setAccusedOpen(false);
     setVotePayload(null);
@@ -112,10 +131,13 @@ export function Dashboard({ me }: { me: Me }) {
     setResultPayload(p);
     setResultOpen(true);
 
-    // Refresh data after a short delay
+    // Play verdict sound
+    if (p.verdict === "kela") play("result-kela");
+    else if (p.verdict === "saeb") play("result-saeb");
+    else play("result-tie");
+
     setTimeout(() => { refreshData(); }, 400);
 
-    // Toast
     if (p.verdict === "kela") {
       toast.success(`🍌 ${p.accusedName} confirmed kela! Fine added.`);
     } else if (p.verdict === "saeb") {
@@ -123,11 +145,11 @@ export function Dashboard({ me }: { me: Me }) {
     } else {
       toast.message(`🤷 It's a tie for ${p.accusedName}.`);
     }
-  }, []);
+  }, [play]);
 
   const onOnlineCount = useCallback((n: number) => setOnlineCount(n), []);
 
-  const { connected, startVote, castVote } = useSocket(me.id, me.name, {
+  const { connected, startVote, castVote } = useSocket(room.id, me.memberId, me.memberName, {
     onVoteStarted,
     onAccused,
     onVoteUpdate,
@@ -138,26 +160,23 @@ export function Dashboard({ me }: { me: Me }) {
   // ---- Data fetching ----------------------------------------------------
   const refreshData = useCallback(async () => {
     try {
-      const [usersRes, incRes] = await Promise.all([
-        fetch("/api/users", { cache: "no-store" }),
-        fetch("/api/incidents", { cache: "no-store" }),
-      ]);
-      if (usersRes.ok) {
-        const ud = await usersRes.json();
-        setFriends(ud.users || []);
-      }
-      if (incRes.ok) {
-        const id = await incRes.json();
-        setIncidents(id.incidents || []);
-        setMyGuiltyCount(id.myGuiltyCount ?? 0);
-        setMyFine(id.myFine ?? 0);
+      const res = await fetch(`/api/rooms/${room.code}`, { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setMembers(data.members || []);
+        setIncidents(data.incidents || []);
+        const meMember = (data.members as Member[])?.find((m) => m.id === me.memberId);
+        if (meMember) {
+          setMyRate(meMember.ratePerKela);
+          setRateInput(String(meMember.ratePerKela));
+        }
       }
     } catch (e) {
       // ignore
     } finally {
       setLoadingData(false);
     }
-  }, []);
+  }, [room.code, me.memberId]);
 
   useEffect(() => {
     refreshData();
@@ -166,6 +185,48 @@ export function Dashboard({ me }: { me: Me }) {
   }, [refreshData]);
 
   // ---- Actions ----------------------------------------------------------
+  function copyInviteLink() {
+    const url = `${window.location.origin}/room/${room.code}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      toast.success("Invite link copied!");
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => toast.error("Could not copy."));
+  }
+
+  async function handleInvite() {
+    if (!inviteEmail) {
+      toast.error("Enter your friend's email.");
+      return;
+    }
+    setInviting(true);
+    try {
+      const res = await fetch(`/api/rooms/${room.code}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail, name: inviteName || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || "Failed to invite.");
+        setInviting(false);
+        return;
+      }
+      if (data.already) {
+        toast.message(`${inviteEmail} is already in this room.`);
+      } else {
+        toast.success(`Invited ${data.member.name}! Share the room code ${room.code} with them.`);
+      }
+      setInviteEmail("");
+      setInviteName("");
+      refreshData();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to invite.");
+    } finally {
+      setInviting(false);
+    }
+  }
+
   async function handleStartVote() {
     if (!accuseTarget) return;
     setStartingVote(true);
@@ -196,6 +257,9 @@ export function Dashboard({ me }: { me: Me }) {
       return;
     }
     setVotedChoice(choice);
+    // Play sound for MY vote
+    if (choice === "kela") play("kela-vote");
+    else play("saeb-vote");
     toast.success(`Voted ${choice === "kela" ? "🍌 Kela" : "🍎 Saeb"}`);
   }
 
@@ -207,17 +271,17 @@ export function Dashboard({ me }: { me: Me }) {
     }
     setSavingRate(true);
     try {
-      const res = await fetch("/api/settings", {
+      const res = await fetch(`/api/rooms/${room.code}/rate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ratePerKela: r }),
+        body: JSON.stringify({ memberId: me.memberId, ratePerKela: r }),
       });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data?.error || "Failed to save.");
       } else {
         toast.success("Rate updated.");
-        me.ratePerKela = data.ratePerKela;
+        setMyRate(r);
         refreshData();
       }
     } finally {
@@ -225,17 +289,29 @@ export function Dashboard({ me }: { me: Me }) {
     }
   }
 
+  function handleLeave() {
+    localStorage.removeItem(`kela:${room.code}`);
+    router.push("/");
+  }
+
+  // ---- Compute my fine --------------------------------------------------
+  const myGuiltyCount = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela").length;
+  const myFine = myGuiltyCount * myRate;
+  const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${room.code}`;
+
   // ---- Render -----------------------------------------------------------
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
       <div className="container mx-auto max-w-6xl p-4 space-y-4">
         {/* Header */}
-        <header className="flex items-center justify-between gap-3 pt-2">
-          <div className="flex items-center gap-3">
+        <header className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="text-4xl">🍌</div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-yellow-950">Kela Tracker</h1>
-              <p className="text-xs text-muted-foreground">Hi, {me.name}!</p>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-yellow-950 truncate">{room.name}</h1>
+              <p className="text-xs text-muted-foreground">
+                Hi, {me.memberName}! · Code: <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -244,8 +320,11 @@ export function Dashboard({ me }: { me: Me }) {
               {connected ? "Online" : "Offline"}
             </Badge>
             <Badge variant="outline">{onlineCount} online</Badge>
-            <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
-              <LogOut className="h-4 w-4 mr-1" /> Sign Out
+            <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)}>
+              <Mail className="h-4 w-4 mr-1" /> Invite
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLeave}>
+              <LogOut className="h-4 w-4 mr-1" /> Leave
             </Button>
           </div>
         </header>
@@ -270,12 +349,8 @@ export function Dashboard({ me }: { me: Me }) {
           {/* Settings */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Settings2 className="h-4 w-4" /> Your Rate
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Fine charged per confirmed kela against you.
-              </CardDescription>
+              <CardTitle className="text-base">Your Rate</CardTitle>
+              <CardDescription className="text-xs">Fine charged per confirmed kela against you.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center gap-2">
@@ -296,10 +371,31 @@ export function Dashboard({ me }: { me: Me }) {
           </Card>
         </div>
 
-        {/* Friends grid */}
+        {/* Share link banner */}
+        <Card className="bg-yellow-50 border-yellow-200">
+          <CardContent className="p-4 flex flex-wrap items-center gap-3">
+            <Users className="h-5 w-5 text-yellow-700 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-yellow-900">Invite friends to this room</div>
+              <div className="text-xs text-yellow-800/80 truncate">{shareUrl}</div>
+            </div>
+            <Button size="sm" variant="outline" onClick={copyInviteLink} className="bg-white">
+              {copied ? <Check className="h-4 w-4 mr-1 text-green-600" /> : <Copy className="h-4 w-4 mr-1" />}
+              {copied ? "Copied!" : "Copy Link"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setInviteOpen(true)} className="bg-white">
+              <Mail className="h-4 w-4 mr-1" /> Invite by Email
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Members grid */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">👥 Your Friend Circle</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="h-5 w-5" /> Friend Circle
+              <Badge variant="secondary" className="ml-1">{members.length}</Badge>
+            </CardTitle>
             <CardDescription>
               Spot someone eating kela? Click <b>Accuse of Kela</b> to start a vote. Everyone except the accused will get a popup to vote 🍌 or 🍎.
             </CardDescription>
@@ -309,42 +405,46 @@ export function Dashboard({ me }: { me: Me }) {
               <div className="flex justify-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : friends.length === 0 ? (
+            ) : members.length <= 1 ? (
               <div className="text-center py-10 text-muted-foreground">
                 <div className="text-4xl mb-2">👋</div>
-                <p className="font-medium">No other friends registered yet.</p>
-                <p className="text-sm mt-1">Tell your friends to sign up at this same URL with their email.</p>
+                <p className="font-medium">You&apos;re the only one here so far.</p>
+                <p className="text-sm mt-1">Invite friends by email or share the room code <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {friends.map((f) => (
-                  <div key={f.id} className="rounded-xl border bg-card p-4 flex flex-col gap-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 bg-yellow-200 text-yellow-900">
-                        <AvatarFallback>{f.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold truncate">{f.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">{f.email}</div>
+                {members.filter((m) => m.id !== me.memberId).map((m) => {
+                  const guilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela").length;
+                  const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
+                  return (
+                    <div key={m.id} className="rounded-xl border bg-card p-4 flex flex-col gap-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10 bg-yellow-200 text-yellow-900">
+                          <AvatarFallback>{m.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold truncate">{m.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{m.email}</div>
+                        </div>
                       </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-900 hover:bg-yellow-100">
+                          PKR {m.ratePerKela}/kela
+                        </Badge>
+                        <span className="text-muted-foreground">
+                          {guilty} guilty / {totalAccused} accused
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-950"
+                        onClick={() => { setAccuseTarget(m); setAccuseReason(""); }}
+                      >
+                        🍌 Accuse of Kela
+                      </Button>
                     </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-900 hover:bg-yellow-100">
-                        PKR {f.ratePerKela}/kela
-                      </Badge>
-                      <span className="text-muted-foreground">
-                        {f._count.incidents} accusation{f._count.incidents === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                    <Button
-                      size="sm"
-                      className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-950"
-                      onClick={() => { setAccuseTarget(f); setAccuseReason(""); }}
-                    >
-                      🍌 Accuse of Kela
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -354,7 +454,7 @@ export function Dashboard({ me }: { me: Me }) {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">📜 Recent Kela Trials</CardTitle>
-            <CardDescription>The latest accusations and verdicts across your friend circle.</CardDescription>
+            <CardDescription>The latest accusations and verdicts in this room.</CardDescription>
           </CardHeader>
           <CardContent>
             {incidents.length === 0 ? (
@@ -389,6 +489,8 @@ export function Dashboard({ me }: { me: Me }) {
                         <span>🍌 {inc.votesYes}</span>
                         <span>🍎 {inc.votesNo}</span>
                         <span>·</span>
+                        <span>by {inc.accusedBy.name}</span>
+                        <span>·</span>
                         <span>{inc.votes.length} voter{inc.votes.length === 1 ? "" : "s"}</span>
                       </div>
                     </div>
@@ -400,9 +502,56 @@ export function Dashboard({ me }: { me: Me }) {
         </Card>
 
         <footer className="text-center text-xs text-muted-foreground pb-4 pt-2">
-          Made with 🍌 · Real-time Among Us-style voting · Open in multiple browsers to test
+          Made with 🍌 · Real-time Among Us-style voting · Sound on for the full experience 🔊
         </footer>
       </div>
+
+      {/* Invite dialog */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite a friend</DialogTitle>
+            <DialogDescription>
+              Add a friend by email. They can then join with the room code <span className="font-mono font-semibold">{room.code}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="inviteName">Friend&apos;s Name (optional)</Label>
+              <Input
+                id="inviteName"
+                placeholder="e.g. Bilal"
+                value={inviteName}
+                onChange={(e) => setInviteName(e.target.value)}
+                maxLength={40}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="inviteEmail">Friend&apos;s Email</Label>
+              <Input
+                id="inviteEmail"
+                type="email"
+                placeholder="friend@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+              💡 We&apos;ll pre-add them to the room so you can accuse them right away. Share the room code <span className="font-mono font-semibold">{room.code}</span> with them so they can join and vote too.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={copyInviteLink}>
+              {copied ? <Check className="h-4 w-4 mr-1 text-green-600" /> : <Copy className="h-4 w-4 mr-1" />}
+              Copy Link
+            </Button>
+            <Button onClick={handleInvite} disabled={inviting} className="bg-yellow-400 hover:bg-yellow-500 text-yellow-950">
+              {inviting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Mail className="h-4 w-4 mr-1" />}
+              Invite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Accuse dialog */}
       <AlertDialog open={!!accuseTarget} onOpenChange={(o) => { if (!o) setAccuseTarget(null); }}>
@@ -410,7 +559,7 @@ export function Dashboard({ me }: { me: Me }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Accuse {accuseTarget?.name} of eating kela?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will start a vote. Every other online user will get a popup to vote 🍌 Kela or 🍎 Saeb. {accuseTarget?.name} cannot vote.
+              This will start a vote. Every other online member will get a popup to vote 🍌 Kela or 🍎 Saeb. {accuseTarget?.name} cannot vote.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
@@ -458,7 +607,7 @@ export function Dashboard({ me }: { me: Me }) {
       <ResultModal
         open={resultOpen}
         payload={resultPayload}
-        isAccusedMe={resultPayload?.accusedId === me.id}
+        isAccusedMe={resultPayload?.accusedId === me.memberId}
         onClose={() => setResultOpen(false)}
       />
     </div>

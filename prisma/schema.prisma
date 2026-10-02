@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Kela Tracker schema — no auth. One person creates a Room, gets an invite code,
+// friends join with name + email (no password). All data scoped to a room.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,33 +10,51 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  ratePerKela  Int      @default(50)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+model Room {
+  id        String   @id @default(cuid())
+  code      String   @unique // short shareable code, e.g. "kela-7H3K"
+  name      String
+  hostEmail String
+  createdAt DateTime @default(now())
 
-  incidents    KelaIncident[] @relation("AccusedUser")
-  votes        Vote[]
+  members   RoomMember[]
+  incidents KelaIncident[]
+}
+
+model RoomMember {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  email     String
+  name      String
+  ratePerKela Int    @default(50)
+  joinedAt  DateTime @default(now())
+
+  incidents  KelaIncident[] @relation("AccusedMember")
+  votes      Vote[]
+  accusedBy  KelaIncident[] @relation("Accuser")
+
+  @@unique([roomId, email])
+  @@index([roomId])
 }
 
 model KelaIncident {
-  id        String   @id @default(cuid())
-  userId    String   // the accused user
-  user      User     @relation("AccusedUser", fields: [userId], references: [id])
-  reason    String?
-  accusedBy String   // user id who initiated the vote
-  votesYes  Int      @default(0)  // kela votes
-  votesNo   Int      @default(0)  // saeb votes
-  verdict   String   @default("pending") // "kela" | "saeb" | "tie" | "pending"
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  roomId     String
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId     String   // the accused member
+  user       RoomMember @relation("AccusedMember", fields: [userId], references: [id], onDelete: Cascade)
+  accusedById String   // member id who initiated the vote
+  accusedBy  RoomMember @relation("Accuser", fields: [accusedById], references: [id], onDelete: Cascade)
+  reason     String?
+  votesYes   Int      @default(0)  // kela votes
+  votesNo    Int      @default(0)  // saeb votes
+  verdict    String   @default("pending") // "kela" | "saeb" | "tie" | "pending"
+  createdAt  DateTime @default(now())
 
-  votes     Vote[]
+  votes      Vote[]
 
-  @@index([userId])
+  @@index([roomId])
   @@index([createdAt])
 }
 
@@ -45,7 +63,7 @@ model Vote {
   incidentId  String
   incident    KelaIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   voterId     String
-  voter       User     @relation(fields: [voterId], references: [id])
+  voter       RoomMember @relation(fields: [voterId], references: [id], onDelete: Cascade)
   choice      String   // "kela" | "saeb"
   createdAt   DateTime @default(now())
 
