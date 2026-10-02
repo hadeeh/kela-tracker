@@ -33,6 +33,7 @@ import { useSounds, useRoomSounds } from "./use-sounds";
 import { VoteModal } from "./vote-modal";
 import { AccusedModal, ResultModal } from "./modals";
 import { SoundManager } from "./sound-manager";
+import { getBadge, getNextBadge, BADGE_TIERS, type BadgeTier } from "@/lib/badges";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; joinedAt: string };
@@ -296,11 +297,11 @@ export function RoomView({ room, me }: Props) {
     router.push("/");
   }
 
-  // ---- Compute my fine + sultan status ---------------------------------
+  // ---- Compute my fine + minister status ---------------------------------
   const myGuiltyCount = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela").length;
   const myFine = myGuiltyCount * myRate;
   const myMember = members.find((m) => m.id === me.memberId);
-  const isSultan = myMember?.role === "sultan";
+  const isMinister = myMember?.role === "minister";
   const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${room.code}`;
 
   // ---- Render -----------------------------------------------------------
@@ -344,6 +345,29 @@ export function RoomView({ room, me }: Props) {
                   <div className="text-sm text-yellow-900/80 mt-1">
                     {myGuiltyCount} kela{myGuiltyCount === 1 ? "" : "s"} confirmed against you
                   </div>
+                  {/* My badge */}
+                  {(() => {
+                    const badge = getBadge(myGuiltyCount);
+                    const next = getNextBadge(myGuiltyCount);
+                    return (
+                      <div className="mt-3 flex items-center gap-2 flex-wrap">
+                        {badge ? (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${badge.color} bg-white`}>
+                            {badge.emoji} {badge.title}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">
+                            No badge yet
+                          </span>
+                        )}
+                        {next && (
+                          <span className="text-xs text-yellow-900/70">
+                            → Next: {next.emoji} {next.title} at {next.minKelas} kelas
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="text-7xl opacity-30">🍌</div>
               </div>
@@ -393,8 +417,8 @@ export function RoomView({ room, me }: Props) {
           </CardContent>
         </Card>
 
-        {/* Sound Manager — only visible to the Kela Sultan */}
-        {isSultan && (
+        {/* Sound Manager — only visible to the Kela Minister */}
+        {isMinister && (
           <SoundManager
             roomCode={room.code}
             memberId={me.memberId}
@@ -459,13 +483,15 @@ export function RoomView({ room, me }: Props) {
                           </Avatar>
                           <div className="flex-1 min-w-0">
                             <div className="font-semibold text-sm truncate flex items-center gap-1">
-                              {m.role === "sultan" && <Crown className="h-3.5 w-3.5 text-yellow-600 flex-shrink-0" />}
+                              {m.role === "minister" && <Crown className="h-3.5 w-3.5 text-yellow-600 flex-shrink-0" />}
                               <span className="truncate">{m.name}</span>
                               {m.isMe && <span className="text-xs text-yellow-700 font-normal">(you)</span>}
+                              {(() => { const b = getBadge(m.guilty); return b ? <span className="text-sm flex-shrink-0">{b.emoji}</span> : null; })()}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {m.guilty} kela{m.guilty === 1 ? "" : "s"} · PKR {m.ratePerKela}/kela
-                              {m.role === "sultan" && " · 👑 Sultan"}
+                              {m.role === "minister" && " · 👑 Minister"}
+                              {(() => { const b = getBadge(m.guilty); return b ? ` · ${b.title}` : ""; })()}
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0">
@@ -481,6 +507,33 @@ export function RoomView({ room, me }: Props) {
             </CardContent>
           </Card>
         )}
+
+        {/* Badge Legend */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">🏅 Badge Legend</CardTitle>
+            <CardDescription>
+              Earn badges by eating kela. The more kelas you eat, the higher your rank. Badges are permanent achievements.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {BADGE_TIERS.map((tier) => (
+                <div
+                  key={tier.minKelas}
+                  className={`flex items-center gap-3 rounded-lg border p-3 ${tier.color}`}
+                >
+                  <div className="text-3xl flex-shrink-0">{tier.emoji}</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm">{tier.title}</div>
+                    <div className="text-xs opacity-80">{tier.tier} · {tier.minKelas}+ kelas</div>
+                    <div className="text-[11px] opacity-70 truncate">{tier.description}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Members grid */}
         <Card>
@@ -518,11 +571,11 @@ export function RoomView({ room, me }: Props) {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold truncate flex items-center gap-1">
-                            {m.role === "sultan" && <Crown className="h-3.5 w-3.5 text-yellow-600 flex-shrink-0" />}
+                            {m.role === "minister" && <Crown className="h-3.5 w-3.5 text-yellow-600 flex-shrink-0" />}
                             <span className="truncate">{m.name}</span>
                           </div>
                           <div className="text-xs text-muted-foreground truncate">
-                            {m.role === "sultan" ? "Kela Sultan" : m.email}
+                            {m.role === "minister" ? "Kela Minister" : m.email}
                           </div>
                         </div>
                       </div>
@@ -544,6 +597,14 @@ export function RoomView({ room, me }: Props) {
                       <div className="text-xs text-muted-foreground text-center">
                         {totalAccused} accusation{totalAccused === 1 ? "" : "s"} total
                       </div>
+                      {(() => {
+                        const badge = getBadge(guilty);
+                        return badge ? (
+                          <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-full border text-xs font-bold ${badge.color}`}>
+                            {badge.emoji} {badge.title}
+                          </div>
+                        ) : null;
+                      })()}
                       <Button
                         size="sm"
                         className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-950"

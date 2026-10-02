@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         name: roomName,
         hostEmail,
         members: {
-          create: { name: hostName, email: hostEmail, ratePerKela: 50, role: "sultan" },
+          create: { name: hostName, email: hostEmail, ratePerKela: 50, role: "minister" },
         },
       },
       include: { members: true },

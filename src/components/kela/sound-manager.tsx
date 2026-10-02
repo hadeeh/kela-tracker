@@ -116,10 +116,10 @@ export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
         <CardTitle className="text-lg flex items-center gap-2">
           <Crown className="h-5 w-5 text-yellow-600" />
           Sound Manager
-          <Badge className="bg-yellow-400 hover:bg-yellow-400 text-yellow-950">👑 Kela Sultan</Badge>
+          <Badge className="bg-yellow-400 hover:bg-yellow-400 text-yellow-950">👑 Kela Minister</Badge>
         </CardTitle>
         <CardDescription>
-          Upload custom sound effects for this room. Only you (the Kela Sultan) can change these. Everyone in the room will hear your custom sounds.
+          Upload custom sound effects for this room. Only you (the Kela Minister) can change these. Everyone in the room will hear your custom sounds.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

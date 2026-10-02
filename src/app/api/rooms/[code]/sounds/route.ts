@@ -32,7 +32,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
   }
 }
 
-// POST /api/rooms/[code]/sounds — upload a custom sound (sultan only)
+// POST /api/rooms/[code]/sounds — upload a custom sound (minister only)
 // Multipart form: memberId, soundType, file
 export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
@@ -55,11 +55,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       return NextResponse.json({ error: "File too large. Max 5MB." }, { status: 400 });
     }
 
-    // Verify the member is a sultan
+    // Verify the member is a minister
     const member = await db.roomMember.findFirst({ where: { id: memberId, roomId: room.id } });
     if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 });
-    if (member.role !== "sultan") {
-      return NextResponse.json({ error: "Only the Kela Sultan can manage sounds." }, { status: 403 });
+    if (member.role !== "minister") {
+      return NextResponse.json({ error: "Only the Kela Minister can manage sounds." }, { status: 403 });
     }
 
     // Determine extension from file type
@@ -99,7 +99,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
   }
 }
 
-// DELETE /api/rooms/[code]/sounds — reset a sound to default (sultan only)
+// DELETE /api/rooms/[code]/sounds — reset a sound to default (minister only)
 // Body: { memberId, soundType }
 export async function DELETE(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
@@ -119,8 +119,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ code:
 
     const member = await db.roomMember.findFirst({ where: { id: memberId, roomId: room.id } });
     if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 });
-    if (member.role !== "sultan") {
-      return NextResponse.json({ error: "Only the Kela Sultan can manage sounds." }, { status: 403 });
+    if (member.role !== "minister") {
+      return NextResponse.json({ error: "Only the Kela Minister can manage sounds." }, { status: 403 });
     }
 
     const roomDir = path.join(SOUND_DIR, room.code);

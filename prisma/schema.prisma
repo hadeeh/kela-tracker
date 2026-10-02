@@ -28,7 +28,7 @@ model RoomMember {
   email     String
   name      String
   ratePerKela Int    @default(50)
-  role      String?  // "sultan" = Kela Sultan (can manage sounds), null = regular member
+  role      String?  // "minister" = Kela Minister (can manage sounds), null = regular member
   joinedAt  DateTime @default(now())
 
   incidents  KelaIncident[] @relation("AccusedMember")
