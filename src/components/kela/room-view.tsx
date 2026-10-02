@@ -24,17 +24,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, LogOut, Wifi, WifiOff, Copy, Mail, Check, Users, ExternalLink } from "lucide-react";
+import { Loader2, LogOut, Wifi, WifiOff, Copy, Mail, Check, Users, ExternalLink, Crown } from "lucide-react";
 import { toast } from "sonner";
 import {
   useSocket, type VoteStartedPayload, type VoteUpdatePayload, type VoteEndedPayload, type AccusedPayload,
 } from "./use-socket";
-import { useSounds } from "./use-sounds";
+import { useSounds, useRoomSounds } from "./use-sounds";
 import { VoteModal } from "./vote-modal";
 import { AccusedModal, ResultModal } from "./modals";
+import { SoundManager } from "./sound-manager";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
-type Member = { id: string; name: string; email: string; ratePerKela: number; joinedAt: string };
+type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; joinedAt: string };
 type Incident = {
   id: string;
   userId: string;
@@ -59,6 +60,7 @@ type Props = {
 export function RoomView({ room, me }: Props) {
   const router = useRouter();
   const { play } = useSounds();
+  const soundsLoaded = useRoomSounds(room.code);
 
   // ---- Data state -------------------------------------------------------
   const [members, setMembers] = useState<Member[]>([]);
@@ -294,9 +296,11 @@ export function RoomView({ room, me }: Props) {
     router.push("/");
   }
 
-  // ---- Compute my fine --------------------------------------------------
+  // ---- Compute my fine + sultan status ---------------------------------
   const myGuiltyCount = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela").length;
   const myFine = myGuiltyCount * myRate;
+  const myMember = members.find((m) => m.id === me.memberId);
+  const isSultan = myMember?.role === "sultan";
   const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${room.code}`;
 
   // ---- Render -----------------------------------------------------------
@@ -389,6 +393,15 @@ export function RoomView({ room, me }: Props) {
           </CardContent>
         </Card>
 
+        {/* Sound Manager — only visible to the Kela Sultan */}
+        {isSultan && (
+          <SoundManager
+            roomCode={room.code}
+            memberId={me.memberId}
+            onSoundsChanged={() => {}}
+          />
+        )}
+
         {/* Kela Leaderboard */}
         {members.length > 0 && (
           <Card>
@@ -445,11 +458,14 @@ export function RoomView({ room, me }: Props) {
                             <AvatarFallback className="text-xs">{m.name.slice(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm truncate">
-                              {m.name} {m.isMe && <span className="text-xs text-yellow-700 font-normal">(you)</span>}
+                            <div className="font-semibold text-sm truncate flex items-center gap-1">
+                              {m.role === "sultan" && <Crown className="h-3.5 w-3.5 text-yellow-600 flex-shrink-0" />}
+                              <span className="truncate">{m.name}</span>
+                              {m.isMe && <span className="text-xs text-yellow-700 font-normal">(you)</span>}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {m.guilty} kela{m.guilty === 1 ? "" : "s"} · PKR {m.ratePerKela}/kela
+                              {m.role === "sultan" && " · 👑 Sultan"}
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0">
@@ -501,8 +517,13 @@ export function RoomView({ room, me }: Props) {
                           <AvatarFallback>{m.name.slice(0, 2).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold truncate">{m.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">{m.email}</div>
+                          <div className="font-semibold truncate flex items-center gap-1">
+                            {m.role === "sultan" && <Crown className="h-3.5 w-3.5 text-yellow-600 flex-shrink-0" />}
+                            <span className="truncate">{m.name}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {m.role === "sultan" ? "Kela Sultan" : m.email}
+                          </div>
                         </div>
                       </div>
                       {/* Per-person kela stats */}

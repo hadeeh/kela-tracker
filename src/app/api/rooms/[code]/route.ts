@@ -35,6 +35,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
         name: m.name,
         email: m.email,
         ratePerKela: m.ratePerKela,
+        role: m.role,
         joinedAt: m.joinedAt,
       })),
       incidents: room.incidents,

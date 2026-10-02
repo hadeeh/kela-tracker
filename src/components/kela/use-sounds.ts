@@ -1,16 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-export type SoundName =
-  | "vote-start"
-  | "kela-vote"
-  | "saeb-vote"
-  | "result-kela"
-  | "result-saeb"
-  | "result-tie";
+export type SoundName = "vote-start" | "kela-vote" | "saeb-vote" | "result-kela" | "result-saeb" | "result-tie";
 
-const SOUND_FILES: Record<SoundName, string> = {
+const DEFAULT_SOUND_FILES: Record<SoundName, string> = {
   "vote-start":   "/sounds/vote-start.wav",
   "kela-vote":    "/sounds/kela-vote.wav",
   "saeb-vote":    "/sounds/saeb-vote.wav",
@@ -20,16 +14,28 @@ const SOUND_FILES: Record<SoundName, string> = {
 };
 
 // Singleton audio element pool — reuses the same <audio> per sound for snappy playback.
-let audioPool: Partial<Record<SoundName, HTMLAudioElement>> = {};
+let audioPool: Partial<Record<string, HTMLAudioElement>> = {};
 let unlocked = false;
+
+// Custom sounds map: soundType -> URL (room-specific)
+let customSounds: Partial<Record<string, string>> = {};
+
+function getAudioUrl(name: SoundName): string {
+  // Check for custom sound first (only for the 3 uploadable types)
+  if (customSounds[name]) return customSounds[name]!;
+  return DEFAULT_SOUND_FILES[name];
+}
 
 function getAudio(name: SoundName): HTMLAudioElement | null {
   if (typeof Audio === "undefined") return null;
-  let a = audioPool[name];
+  const url = getAudioUrl(name);
+  // Use URL as key so custom sounds get their own audio element
+  const key = `${name}:${url}`;
+  let a = audioPool[key];
   if (!a) {
-    a = new Audio(SOUND_FILES[name]);
+    a = new Audio(url);
     a.preload = "auto";
-    audioPool[name] = a;
+    audioPool[key] = a;
   }
   return a;
 }
@@ -42,7 +48,6 @@ export function useSoundUnlock() {
     const unlock = () => {
       if (unlocked) return;
       unlocked = true;
-      // Play a silent dummy to satisfy autoplay policies.
       try {
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const osc = ctx.createOscillator();
@@ -53,8 +58,8 @@ export function useSoundUnlock() {
         osc.start();
         osc.stop(ctx.currentTime + 0.01);
       } catch {}
-      // Preload all sounds.
-      (Object.keys(SOUND_FILES) as SoundName[]).forEach((s) => {
+      // Preload all default sounds.
+      (Object.keys(DEFAULT_SOUND_FILES) as SoundName[]).forEach((s) => {
         const a = getAudio(s);
         a?.load();
       });
@@ -66,6 +71,68 @@ export function useSoundUnlock() {
       window.removeEventListener("keydown", unlock);
     };
   }, []);
+}
+
+// Hook to load custom sounds for a room
+export function useRoomSounds(roomCode: string | null) {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!roomCode) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/rooms/${roomCode}/sounds`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const sounds = data.sounds as Record<string, string | null>;
+        const uploadable: SoundName[] = ["vote-start", "kela-vote", "saeb-vote"];
+        for (const t of uploadable) {
+          if (sounds[t]) {
+            customSounds[t] = `${sounds[t]}?t=${Date.now()}`;
+          } else {
+            delete customSounds[t];
+          }
+          // Clear cached audio elements for this sound type
+          for (const key of Object.keys(audioPool)) {
+            if (key.startsWith(t + ":")) {
+              delete audioPool[key];
+            }
+          }
+        }
+      } catch {}
+      if (!cancelled) setLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [roomCode]);
+
+  return loaded;
+}
+
+// Refresh room sounds (call after uploading a new sound)
+export function refreshRoomSounds(roomCode: string) {
+  const uploadable: SoundName[] = ["vote-start", "kela-vote", "saeb-vote"];
+  for (const t of uploadable) {
+    for (const key of Object.keys(audioPool)) {
+      if (key.startsWith(t + ":")) {
+        delete audioPool[key];
+      }
+    }
+  }
+  fetch(`/api/rooms/${roomCode}/sounds`, { cache: "no-store" })
+    .then((r) => r.json())
+    .then((data) => {
+      const sounds = data.sounds as Record<string, string | null>;
+      for (const t of uploadable) {
+        if (sounds[t]) {
+          customSounds[t] = `${sounds[t]}?t=${Date.now()}`;
+        } else {
+          delete customSounds[t];
+        }
+      }
+    })
+    .catch(() => {});
 }
 
 export function useSounds() {

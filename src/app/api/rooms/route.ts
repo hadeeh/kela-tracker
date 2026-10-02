@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         name: roomName,
         hostEmail,
         members: {
-          create: { name: hostName, email: hostEmail, ratePerKela: 50 },
+          create: { name: hostName, email: hostEmail, ratePerKela: 50, role: "sultan" },
         },
       },
       include: { members: true },
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     const hostMember = room.members[0];
     return NextResponse.json({
       room: { id: room.id, code: room.code, name: room.name, createdAt: room.createdAt },
-      member: { id: hostMember.id, name: hostMember.name, email: hostMember.email, ratePerKela: hostMember.ratePerKela },
+      member: { id: hostMember.id, name: hostMember.name, email: hostMember.email, ratePerKela: hostMember.ratePerKela, role: hostMember.role },
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Server error" }, { status: 500 });
