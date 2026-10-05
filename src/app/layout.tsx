@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   description: "Among Us-style voting app for when your friends eat kela (get offended). Invite friends by email, real-time voting, fines tracked.",
   keywords: ["kela", "kela tracker", "voting", "friends", "among us"],
   authors: [{ name: "Kela Tracker" }],
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

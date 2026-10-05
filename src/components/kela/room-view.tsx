@@ -94,6 +94,7 @@ export function RoomView({ room, me }: Props) {
   const [editingRateId, setEditingRateId] = useState<string | null>(null);
   const [editingRateValue, setEditingRateValue] = useState("50");
   const [savingRateForMember, setSavingRateForMember] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
 
   // ---- Active vote modal (I'm a voter) ---------------------------------
   const [voteOpen, setVoteOpen] = useState(false);
@@ -222,6 +223,11 @@ export function RoomView({ room, me }: Props) {
     const id = setInterval(refreshData, 15_000);
     return () => clearInterval(id);
   }, [refreshData]);
+
+  // Set share URL on client (avoids hydration mismatch with window.location)
+  useEffect(() => {
+    setShareUrl(`${window.location.origin}/room/${room.code}`);
+  }, [room.code]);
 
   // ---- Actions ----------------------------------------------------------
   function copyInviteLink() {
@@ -456,7 +462,6 @@ export function RoomView({ room, me }: Props) {
   const myMember = members.find((m) => m.id === me.memberId);
   // Minister = has "minister" role OR is the room host (hostEmail matches my email)
   const isMinister = myMember?.role === "minister" || (myMember?.email && myMember.email === room.hostEmail);
-  const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${room.code}`;
 
   // ---- Render -----------------------------------------------------------
   return (
