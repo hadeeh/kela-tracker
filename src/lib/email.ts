@@ -1,13 +1,36 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-// Initialize Resend only if API key is provided
-const apiKey = process.env.RESEND_API_KEY;
-export const resend = apiKey ? new Resend(apiKey) : null;
+// Gmail SMTP configuration
+// To set up:
+// 1. Go to your Google Account → Security → 2-Step Verification → turn ON
+// 2. Go to App Passwords → create a new app password for "Kela Tracker"
+// 3. Copy the 16-character password
+// 4. Set env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
 
-// The email address that invites will be sent from.
-// In development (without a verified domain), use "onboarding@resend.dev"
-// which is Resend's default sender for testing.
-export const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10);
+const smtpUser = process.env.SMTP_USER || "";
+const smtpPass = process.env.SMTP_PASS || "";
+const fromEmail = process.env.SMTP_FROM || smtpUser;
+
+// Create a reusable transporter (lazy init)
+let transporter: nodemailer.Transporter | null = null;
+
+function getTransporter(): nodemailer.Transporter | null {
+  if (!smtpUser || !smtpPass) return null;
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465, // true for 465, false for other ports
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+  }
+  return transporter;
+}
 
 export type InviteEmailParams = {
   to: string;
@@ -15,14 +38,15 @@ export type InviteEmailParams = {
   roomCode: string;
   inviteeName: string;
   inviterName: string;
-  role: string; // "Kela Minister" or "Member"
+  role: string; // "minister" or "member"
   ratePerKela: number;
   roomUrl: string;
 };
 
 export async function sendInviteEmail(params: InviteEmailParams): Promise<{ ok: boolean; error?: string }> {
-  if (!resend) {
-    return { ok: false, error: "Email service not configured (RESEND_API_KEY not set)" };
+  const transport = getTransporter();
+  if (!transport) {
+    return { ok: false, error: "Email service not configured (SMTP_USER/SMTP_PASS not set)" };
   }
 
   const { to, roomName, roomCode, inviteeName, inviterName, role, ratePerKela, roomUrl } = params;
@@ -44,10 +68,10 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ ok: 
     </div>
     <!-- Body -->
     <div style="padding:30px 20px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333;">Hi ${inviteeName || "there"},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333;">Hi ${escapeHtml(inviteeName || "there")},</p>
       <p style="margin:0 0 16px;font-size:15px;color:#555;line-height:1.6;">
-        <strong>${inviterName}</strong> has invited you to join the kela circle
-        <strong>"${roomName}"</strong> on Kela Tracker.
+        <strong>${escapeHtml(inviterName)}</strong> has invited you to join the kela circle
+        <strong>"${escapeHtml(roomName)}"</strong> on Kela Tracker.
       </p>
       <div style="background:#FFF8E1;border:1px solid #F5C518;border-radius:10px;padding:16px;margin:20px 0;">
         <table style="width:100%;font-size:14px;color:#444;">
@@ -61,7 +85,7 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ ok: 
           </tr>
           <tr>
             <td style="padding:4px 0;color:#888;">Room code:</td>
-            <td style="padding:4px 0;font-weight:600;font-family:monospace;">${roomCode}</td>
+            <td style="padding:4px 0;font-weight:600;font-family:monospace;">${escapeHtml(roomCode)}</td>
           </tr>
         </table>
       </div>
@@ -71,18 +95,18 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ ok: 
       </p>
       <!-- CTA Button -->
       <div style="text-align:center;margin:24px 0;">
-        <a href="${roomUrl}" style="display:inline-block;background:#F5C518;color:#2B1B0E;font-weight:700;font-size:16px;padding:14px 32px;border-radius:10px;text-decoration:none;box-shadow:0 3px 0 #E0B012;">
+        <a href="${escapeHtml(roomUrl)}" style="display:inline-block;background:#F5C518;color:#2B1B0E;font-weight:700;font-size:16px;padding:14px 32px;border-radius:10px;text-decoration:none;box-shadow:0 3px 0 #E0B012;">
           🍌 Join the Room
         </a>
       </div>
       <p style="margin:0;font-size:12px;color:#999;text-align:center;">
-        Or visit <a href="${roomUrl}" style="color:#F5C518;">${roomUrl}</a> and enter code <strong>${roomCode}</strong>
+        Or visit <a href="${escapeHtml(roomUrl)}" style="color:#F5C518;">${escapeHtml(roomUrl)}</a> and enter code <strong>${escapeHtml(roomCode)}</strong>
       </p>
     </div>
     <!-- Footer -->
     <div style="background:#FFF8E1;padding:16px 20px;text-align:center;">
       <p style="margin:0;font-size:12px;color:#999;">
-        You received this because ${inviterName} invited you to Kela Tracker.
+        You received this because ${escapeHtml(inviterName)} invited you to Kela Tracker.
       </p>
     </div>
   </div>
@@ -106,19 +130,21 @@ What is Kela Tracker? It's a fun app where friends vote when someone "eats kela"
 `;
 
   try {
-    const { error } = await resend.emails.send({
-      from: FROM_EMAIL,
+    await transport.sendMail({
+      from: fromEmail,
       to: [to],
       subject: `🍌 You've been invited to "${roomName}" on Kela Tracker!`,
       html,
       text,
     });
-
-    if (error) {
-      return { ok: false, error: error.message };
-    }
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message || "Failed to send email" };
   }
+}
+
+function escapeHtml(s: string): string {
+  return (s || "").replace(/[&<>"']/g, (c) => {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] || c;
+  });
 }
