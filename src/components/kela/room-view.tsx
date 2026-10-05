@@ -454,7 +454,8 @@ export function RoomView({ room, me }: Props) {
   const myFine = Math.max(0, myGrossFine - myTotalPaid);
   const mySettledCount = myGuiltyIncidents.filter((i) => (i.paidAmount || 0) >= (i.rateAtTime || i.user.ratePerKela)).length;
   const myMember = members.find((m) => m.id === me.memberId);
-  const isMinister = myMember?.role === "minister";
+  // Minister = has "minister" role OR is the room host (hostEmail matches my email)
+  const isMinister = myMember?.role === "minister" || (myMember?.email && myMember.email === room.hostEmail);
   const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${room.code}`;
 
   // ---- Render -----------------------------------------------------------
@@ -468,7 +469,7 @@ export function RoomView({ room, me }: Props) {
             <div className="min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-yellow-950 truncate">{room.name}</h1>
               <p className="text-xs text-muted-foreground">
-                Hi, {me.memberName}! · Code: <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>
+                Hi, {me.memberName}!{isMinister && <span className="text-yellow-700 font-semibold"> 👑 Kela Minister</span>} · Code: <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>
               </p>
             </div>
           </div>
