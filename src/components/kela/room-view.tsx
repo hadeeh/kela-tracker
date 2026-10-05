@@ -45,6 +45,8 @@ type Incident = {
   votesYes: number;
   votesNo: number;
   verdict: string;
+  settled: boolean;
+  settledAt: string | null;
   createdAt: string;
   user: { id: string; name: string; email: string; ratePerKela: number };
   accusedBy: { id: string; name: string };
@@ -345,14 +347,58 @@ export function RoomView({ room, me }: Props) {
     setEditingRateValue(String(currentRate));
   }
 
+  // Minister: settle/unsettle a fine
+  async function handleSettle(incidentId: string) {
+    try {
+      const res = await fetch(`/api/rooms/${room.code}/incidents/${incidentId}/settle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: me.memberId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || "Failed to settle.");
+        return;
+      }
+      toast.success(data.settled ? "✓ Fine settled!" : "Fine reopened.");
+      refreshData();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to settle.");
+    }
+  }
+
+  // Minister: delete an incident
+  async function handleDeleteIncident(incidentId: string, accusedName: string) {
+    if (!confirm(`Delete this kela incident for ${accusedName}? This removes it permanently (votes + fine).`)) return;
+    try {
+      const res = await fetch(`/api/rooms/${room.code}/incidents/${incidentId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: me.memberId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || "Failed to delete.");
+        return;
+      }
+      toast.success("Incident deleted.");
+      refreshData();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete.");
+    }
+  }
+
   function handleLeave() {
     localStorage.removeItem(`kela:${room.code}`);
     router.push("/");
   }
 
   // ---- Compute my fine + minister status ---------------------------------
+  // Only count UNSETTLED guilty incidents for the fine (settled = paid/waived)
   const myGuiltyCount = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela").length;
-  const myFine = myGuiltyCount * myRate;
+  const myUnsettledGuilty = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela" && !i.settled).length;
+  const myFine = myUnsettledGuilty * myRate;
+  const mySettledCount = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela" && i.settled).length;
   const myMember = members.find((m) => m.id === me.memberId);
   const isMinister = myMember?.role === "minister";
   const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${room.code}`;
@@ -393,7 +439,10 @@ export function RoomView({ room, me }: Props) {
                   <div className="text-xs font-bold uppercase tracking-wider text-yellow-900/70">Your Total Fine Due</div>
                   <div className="text-4xl font-bold text-yellow-950 mt-1">PKR {myFine.toLocaleString()}</div>
                   <div className="text-sm text-yellow-900/80 mt-1">
-                    {myGuiltyCount} kela{myGuiltyCount === 1 ? "" : "s"} confirmed against you
+                    {myUnsettledGuilty} unpaid kela{myUnsettledGuilty === 1 ? "" : "s"}
+                    {mySettledCount > 0 && (
+                      <span className="text-green-700"> · {mySettledCount} settled ✓</span>
+                    )}
                   </div>
                   {/* My badge */}
                   {(() => {
@@ -494,12 +543,14 @@ export function RoomView({ room, me }: Props) {
                 const ranked = members
                   .map((m) => {
                     const guilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela").length;
+                    const unsettledGuilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela" && !i.settled).length;
                     const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
                     return {
                       ...m,
                       guilty,
+                      unsettledGuilty,
                       totalAccused,
-                      totalFine: guilty * m.ratePerKela,
+                      totalFine: unsettledGuilty * m.ratePerKela,
                       isMe: m.id === me.memberId,
                     };
                   })
@@ -613,8 +664,9 @@ export function RoomView({ room, me }: Props) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {members.filter((m) => m.id !== me.memberId).map((m) => {
                   const guilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela").length;
+                  const unsettledGuilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela" && !i.settled).length;
                   const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
-                  const totalFine = guilty * m.ratePerKela;
+                  const totalFine = unsettledGuilty * m.ratePerKela;
                   return (
                     <div key={m.id} className="rounded-xl border bg-card p-4 flex flex-col gap-3">
                       <div className="flex items-center gap-3">
@@ -751,7 +803,31 @@ export function RoomView({ room, me }: Props) {
                         <span>by {inc.accusedBy.name}</span>
                         <span>·</span>
                         <span>{inc.votes.length} voter{inc.votes.length === 1 ? "" : "s"}</span>
+                        {inc.settled && (
+                          <span className="text-green-600 font-semibold">· ✓ Settled</span>
+                        )}
                       </div>
+                      {/* Minister actions: settle + delete (only for non-pending incidents) */}
+                      {isMinister && inc.verdict !== "pending" && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <Button
+                            size="sm"
+                            variant={inc.settled ? "outline" : "secondary"}
+                            onClick={() => handleSettle(inc.id)}
+                            className="h-7 text-xs"
+                          >
+                            {inc.settled ? "↩ Reopen" : "✓ Settle Fine"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteIncident(inc.id, inc.user.name)}
+                            className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            🗑 Delete
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
