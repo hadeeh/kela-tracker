@@ -77,6 +77,8 @@ export function RoomView({ room, me }: Props) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"minister" | "member">("member");
+  const [inviteRate, setInviteRate] = useState("50");
   const [inviting, setInviting] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -84,6 +86,11 @@ export function RoomView({ room, me }: Props) {
   const [accuseTarget, setAccuseTarget] = useState<Member | null>(null);
   const [accuseReason, setAccuseReason] = useState("");
   const [startingVote, setStartingVote] = useState(false);
+
+  // ---- Inline rate editing (minister only) ------------------------------
+  const [editingRateId, setEditingRateId] = useState<string | null>(null);
+  const [editingRateValue, setEditingRateValue] = useState("50");
+  const [savingRateForMember, setSavingRateForMember] = useState(false);
 
   // ---- Active vote modal (I'm a voter) ---------------------------------
   const [voteOpen, setVoteOpen] = useState(false);
@@ -214,7 +221,13 @@ export function RoomView({ room, me }: Props) {
       const res = await fetch(`/api/rooms/${room.code}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, name: inviteName || undefined }),
+        body: JSON.stringify({
+          email: inviteEmail,
+          name: inviteName || undefined,
+          role: inviteRole === "minister" ? "minister" : undefined,
+          ratePerKela: Number(inviteRate) || 50,
+          inviterId: me.memberId,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -225,10 +238,15 @@ export function RoomView({ room, me }: Props) {
       if (data.already) {
         toast.message(`${inviteEmail} is already in this room.`);
       } else {
-        toast.success(`Invited ${data.member.name}! Share the room code ${room.code} with them.`);
+        const roleLabel = inviteRole === "minister" ? " as Kela Minister 👑" : "";
+        const rateLabel = ` at PKR ${inviteRate}/kela`;
+        toast.success(`Added ${data.member.name}${roleLabel}${rateLabel}!`);
+        toast.message(`📧 Share the room link with them: ${window.location.origin}/room/${room.code}`);
       }
       setInviteEmail("");
       setInviteName("");
+      setInviteRole("member");
+      setInviteRate("50");
       refreshData();
     } catch (e: any) {
       toast.error(e?.message || "Failed to invite.");
@@ -295,6 +313,38 @@ export function RoomView({ room, me }: Props) {
     }
   }
 
+  // Minister: save rate for a specific member
+  async function saveMemberRate(memberId: string) {
+    const r = Number(editingRateValue);
+    if (Number.isNaN(r) || r < 0) {
+      toast.error("Enter a valid rate.");
+      return;
+    }
+    setSavingRateForMember(true);
+    try {
+      const res = await fetch(`/api/rooms/${room.code}/rate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: me.memberId, targetMemberId: memberId, ratePerKela: r }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || "Failed to save.");
+      } else {
+        toast.success(`Rate updated for ${data.member.name}.`);
+        setEditingRateId(null);
+        refreshData();
+      }
+    } finally {
+      setSavingRateForMember(false);
+    }
+  }
+
+  function startEditingRate(memberId: string, currentRate: number) {
+    setEditingRateId(memberId);
+    setEditingRateValue(String(currentRate));
+  }
+
   function handleLeave() {
     localStorage.removeItem(`kela:${room.code}`);
     router.push("/");
@@ -323,9 +373,11 @@ export function RoomView({ room, me }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)}>
-              <Mail className="h-4 w-4 mr-1" /> Invite
-            </Button>
+            {isMinister && (
+              <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)}>
+                <Mail className="h-4 w-4 mr-1" /> Invite
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={handleLeave}>
               <LogOut className="h-4 w-4 mr-1" /> Leave
             </Button>
@@ -397,7 +449,8 @@ export function RoomView({ room, me }: Props) {
           </Card>
         </div>
 
-        {/* Share link banner */}
+        {/* Share link banner — only minister sees this */}
+        {isMinister && (
         <Card className="bg-yellow-50 border-yellow-200">
           <CardContent className="p-4 flex flex-wrap items-center gap-3">
             <Users className="h-5 w-5 text-yellow-700 flex-shrink-0" />
@@ -414,6 +467,7 @@ export function RoomView({ room, me }: Props) {
             </Button>
           </CardContent>
         </Card>
+        )}
 
         {/* Sound Manager — only visible to the Kela Minister */}
         {isMinister && (
@@ -584,8 +638,45 @@ export function RoomView({ room, me }: Props) {
                           <div className="text-[10px] text-yellow-700 font-medium leading-tight">Kelas eaten</div>
                         </div>
                         <div className="rounded-lg bg-muted border p-2">
-                          <div className="text-lg font-bold">PKR {m.ratePerKela}</div>
-                          <div className="text-[10px] text-muted-foreground font-medium leading-tight">Rate/kela</div>
+                          {isMinister && editingRateId === m.id ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                value={editingRateValue}
+                                onChange={(e) => setEditingRateValue(e.target.value)}
+                                className="w-14 text-center text-sm font-bold border rounded px-1 py-0.5"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveMemberRate(m.id);
+                                  if (e.key === "Escape") setEditingRateId(null);
+                                }}
+                              />
+                              <button
+                                onClick={() => saveMemberRate(m.id)}
+                                disabled={savingRateForMember}
+                                className="text-xs font-bold text-green-600 hover:text-green-700"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => setEditingRateId(null)}
+                                className="text-xs font-bold text-red-500 hover:text-red-600"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => isMinister && startEditingRate(m.id, m.ratePerKela)}
+                              className="w-full"
+                              title={isMinister ? "Click to edit rate" : undefined}
+                            >
+                              <div className={`text-lg font-bold ${isMinister ? "cursor-pointer hover:text-yellow-600" : ""}`}>PKR {m.ratePerKela}</div>
+                            </button>
+                          )}
+                          <div className="text-[10px] text-muted-foreground font-medium leading-tight">
+                            {isMinister ? "Rate/kela (click to edit)" : "Rate/kela"}
+                          </div>
                         </div>
                         <div className="rounded-lg bg-red-50 border border-red-200 p-2">
                           <div className="text-lg font-bold text-red-700">PKR {totalFine.toLocaleString()}</div>
@@ -680,7 +771,7 @@ export function RoomView({ room, me }: Props) {
           <DialogHeader>
             <DialogTitle>Invite a friend</DialogTitle>
             <DialogDescription>
-              Add a friend by email. They can then join with the room code <span className="font-mono font-semibold">{room.code}</span>.
+              Add a friend to the room. Their email is used as their identity (no actual email is sent). Share the room link with them so they can join.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -703,6 +794,45 @@ export function RoomView({ room, me }: Props) {
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
               />
+            </div>
+            {/* Role selection */}
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInviteRole("member")}
+                  className={`rounded-lg border p-3 text-left transition ${inviteRole === "member" ? "border-yellow-400 bg-yellow-50" : "border-border bg-card hover:bg-muted"}`}
+                >
+                  <div className="font-semibold text-sm">👤 Member</div>
+                  <div className="text-xs text-muted-foreground">Can vote & be accused</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInviteRole("minister")}
+                  className={`rounded-lg border p-3 text-left transition ${inviteRole === "minister" ? "border-yellow-400 bg-yellow-50" : "border-border bg-card hover:bg-muted"}`}
+                >
+                  <div className="font-semibold text-sm">👑 Kela Minister</div>
+                  <div className="text-xs text-muted-foreground">Can invite, set rates & manage sounds</div>
+                </button>
+              </div>
+            </div>
+            {/* Rate per kela */}
+            <div className="space-y-2">
+              <Label htmlFor="inviteRate">Fine per Kela (PKR)</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground">PKR</span>
+                <Input
+                  id="inviteRate"
+                  type="number"
+                  min={0}
+                  step={5}
+                  value={inviteRate}
+                  onChange={(e) => setInviteRate(e.target.value)}
+                  className="flex-1"
+                />
+                <span className="text-xs text-muted-foreground whitespace-nowrap">per kela</span>
+              </div>
             </div>
             <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
               💡 We&apos;ll pre-add them to the room so you can accuse them right away. Share the room code <span className="font-mono font-semibold">{room.code}</span> with them so they can join and vote too.

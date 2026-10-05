@@ -44,7 +44,7 @@ type Handlers = {
   onVoteEnded?: (v: EndedVote) => void;
 };
 
-const POLL_INTERVAL_MS = 1500;
+const POLL_INTERVAL_MS = 700;
 
 export function usePolling(
   roomCode: string | null,
