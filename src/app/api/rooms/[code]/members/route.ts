@@ -54,7 +54,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       where: { roomId_email: { roomId: room.id, email } },
     });
     if (existing) {
-      return NextResponse.json({ ok: true, already: true, member: existing });
+      // Check if the existing member was anonymized (removed)
+      if (existing.name === "Removed User") {
+        return NextResponse.json({
+          error: "This email was previously removed from the room. Use a different email.",
+        }, { status: 400 });
+      }
+      // Return existing member info
+      return NextResponse.json({
+        ok: true,
+        already: true,
+        member: {
+          id: existing.id,
+          name: existing.name,
+          email: existing.email,
+          ratePerKela: existing.ratePerKela,
+          role: existing.role,
+        },
+      });
     }
 
     const placeholderName = name || email.split("@")[0];

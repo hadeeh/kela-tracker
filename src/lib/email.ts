@@ -51,8 +51,28 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ ok: 
 
   const { to, roomName, roomCode, inviteeName, inviterName, role, ratePerKela, roomUrl } = params;
 
-  const html = `
-<!DOCTYPE html>
+  const subject = `🍌 ${inviterName} invited you to "${roomName}" on Kela Tracker`;
+
+  const text = `Kela Tracker Invitation
+
+Hi ${inviteeName || "there"},
+
+${inviterName} has invited you to join the kela circle "${roomName}" on Kela Tracker.
+
+Role: ${role === "minister" ? "Kela Minister" : "Member"}
+Fine per kela: PKR ${ratePerKela}
+Room code: ${roomCode}
+
+Join here: ${roomUrl}
+
+What is Kela Tracker?
+It's a fun app where friends vote when someone "eats kela" (gets offended). Earn badges, pay fines, and catch your friends being sensitive!
+
+---
+You received this email because ${inviterName} invited you to Kela Tracker.
+If you don't know ${inviterName}, you can safely ignore this email.`;
+
+  const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -60,13 +80,11 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ ok: 
 </head>
 <body style="margin:0;padding:0;background:#FFF8E1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <div style="max-width:500px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-    <!-- Header -->
     <div style="background:linear-gradient(135deg,#FFE135,#F5C518);padding:30px 20px;text-align:center;">
       <div style="font-size:48px;margin-bottom:8px;">🍌</div>
       <h1 style="margin:0;color:#2B1B0E;font-size:24px;font-weight:800;">Kela Tracker</h1>
       <p style="margin:4px 0 0;color:#5C4A1E;font-size:14px;">You've been invited!</p>
     </div>
-    <!-- Body -->
     <div style="padding:30px 20px;">
       <p style="margin:0 0 16px;font-size:16px;color:#333;">Hi ${escapeHtml(inviteeName || "there")},</p>
       <p style="margin:0 0 16px;font-size:15px;color:#555;line-height:1.6;">
@@ -90,10 +108,8 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ ok: 
         </table>
       </div>
       <p style="margin:0 0 20px;font-size:14px;color:#666;line-height:1.5;">
-        What is Kela Tracker? It's a fun app where friends vote when someone "eats kela" (gets offended).
-        Earn badges, pay fines, and catch your friends being sensitive! 😄
+        What is Kela Tracker? It's a fun app where friends vote when someone "eats kela" (gets offended). Earn badges, pay fines, and catch your friends being sensitive!
       </p>
-      <!-- CTA Button -->
       <div style="text-align:center;margin:24px 0;">
         <a href="${escapeHtml(roomUrl)}" style="display:inline-block;background:#F5C518;color:#2B1B0E;font-weight:700;font-size:16px;padding:14px 32px;border-radius:10px;text-decoration:none;box-shadow:0 3px 0 #E0B012;">
           🍌 Join the Room
@@ -103,39 +119,29 @@ export async function sendInviteEmail(params: InviteEmailParams): Promise<{ ok: 
         Or visit <a href="${escapeHtml(roomUrl)}" style="color:#F5C518;">${escapeHtml(roomUrl)}</a> and enter code <strong>${escapeHtml(roomCode)}</strong>
       </p>
     </div>
-    <!-- Footer -->
     <div style="background:#FFF8E1;padding:16px 20px;text-align:center;">
       <p style="margin:0;font-size:12px;color:#999;">
-        You received this because ${escapeHtml(inviterName)} invited you to Kela Tracker.
+        You received this email because ${escapeHtml(inviterName)} invited you to Kela Tracker.<br>
+        If you don't know ${escapeHtml(inviterName)}, you can safely ignore this email.
       </p>
     </div>
   </div>
 </body>
-</html>
-  `;
-
-  const text = `🍌 Kela Tracker Invitation
-
-Hi ${inviteeName || "there"},
-
-${inviterName} has invited you to join the kela circle "${roomName}" on Kela Tracker.
-
-Role: ${role === "minister" ? "Kela Minister" : "Member"}
-Fine per kela: PKR ${ratePerKela}
-Room code: ${roomCode}
-
-Join here: ${roomUrl}
-
-What is Kela Tracker? It's a fun app where friends vote when someone "eats kela" (gets offended). Earn badges, pay fines, and catch your friends being sensitive!
-`;
+</html>`;
 
   try {
     await transport.sendMail({
-      from: fromEmail,
+      from: `"Kela Tracker <${fromEmail}>"`,
       to: [to],
-      subject: `🍌 You've been invited to "${roomName}" on Kela Tracker!`,
+      subject,
       html,
-      text,
+      text, // plain text alternative (helps avoid spam)
+      replyTo: smtpUser, // replies go to the sender
+      headers: {
+        "X-Mailer": "Kela Tracker",
+        "X-Priority": "3", // normal priority
+        "List-Unsubscribe": `<mailto:${smtpUser}?subject=Unsubscribe>`,
+      },
     });
     return { ok: true };
   } catch (e: any) {

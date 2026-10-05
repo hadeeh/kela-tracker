@@ -268,11 +268,16 @@ export function RoomView({ room, me }: Props) {
         return;
       }
       if (data.already) {
-        toast.message(`${inviteEmail} is already in this room.`);
+        toast.message(`📧 ${inviteEmail} is already in this room as "${data.member.name}".`);
       } else {
         const roleLabel = inviteRole === "minister" ? " as Kela Minister 👑" : "";
         const rateLabel = ` at PKR ${inviteRate}/kela`;
         toast.success(`✓ Added ${data.member.name}${roleLabel}${rateLabel}!`);
+        if (data.emailSent) {
+          toast.success(`📧 Invitation email sent to ${inviteEmail}!`);
+        } else if (data.emailError) {
+          toast.message(`📧 Email not sent: ${data.emailError}. Share link manually.`);
+        }
         toast.message(`📧 Share this link: ${window.location.origin}/room/${room.code}`);
       }
       setInviteEmail("");
