@@ -237,6 +237,10 @@ export function RoomView({ room, me }: Props) {
       toast.error("Enter your friend's email.");
       return;
     }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(inviteEmail)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
     setInviting(true);
     try {
       const res = await fetch(`/api/rooms/${room.code}/members`, {
@@ -261,13 +265,14 @@ export function RoomView({ room, me }: Props) {
       } else {
         const roleLabel = inviteRole === "minister" ? " as Kela Minister 👑" : "";
         const rateLabel = ` at PKR ${inviteRate}/kela`;
-        toast.success(`Added ${data.member.name}${roleLabel}${rateLabel}!`);
-        toast.message(`📧 Share the room link with them: ${window.location.origin}/room/${room.code}`);
+        toast.success(`✓ Added ${data.member.name}${roleLabel}${rateLabel}!`);
+        toast.message(`📧 Share this link: ${window.location.origin}/room/${room.code}`);
       }
       setInviteEmail("");
       setInviteName("");
       setInviteRole("member");
       setInviteRate("50");
+      setInviteOpen(false);
       refreshData();
     } catch (e: any) {
       toast.error(e?.message || "Failed to invite.");
@@ -410,6 +415,27 @@ export function RoomView({ room, me }: Props) {
       refreshData();
     } catch (e: any) {
       toast.error(e?.message || "Failed to delete.");
+    }
+  }
+
+  // Minister: remove a member from the room
+  async function handleRemoveMember(memberId: string, memberName: string) {
+    if (!confirm(`Remove ${memberName} from the room? This deletes all their kelas, votes, and fines.`)) return;
+    try {
+      const res = await fetch(`/api/rooms/${room.code}/members/${memberId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: me.memberId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || "Failed to remove member.");
+        return;
+      }
+      toast.success(`${memberName} removed from the room.`);
+      refreshData();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to remove member.");
     }
   }
 
@@ -787,6 +813,16 @@ export function RoomView({ room, me }: Props) {
                       >
                         🍌 Kelaaaa
                       </Button>
+                      {isMinister && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 text-xs"
+                          onClick={() => handleRemoveMember(m.id, m.name)}
+                        >
+                          🗑 Remove Member
+                        </Button>
+                      )}
                     </div>
                   );
                 })}

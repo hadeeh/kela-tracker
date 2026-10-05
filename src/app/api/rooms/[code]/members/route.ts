@@ -26,13 +26,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const room = await db.room.findUnique({ where: { code: code.toUpperCase() } });
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
-    // Verify inviter is a member AND is a minister
+    // Verify inviter is a member AND is a minister (or is the room host)
     const inviter = await db.roomMember.findFirst({
       where: { id: inviterId, roomId: room.id },
     });
     if (!inviter) return NextResponse.json({ error: "Inviter not found in room." }, { status: 404 });
-    if (inviter.role !== "minister") {
+
+    // Treat as minister if: role is "minister" OR they're the room host (hostEmail matches)
+    const isMinister = inviter.role === "minister" || inviter.email === room.hostEmail;
+    if (!isMinister) {
       return NextResponse.json({ error: "Only the Kela Minister can invite members." }, { status: 403 });
+    }
+
+    // If the host doesn't have the minister role yet, set it
+    if (inviter.role !== "minister" && inviter.email === room.hostEmail) {
+      await db.roomMember.update({
+        where: { id: inviterId },
+        data: { role: "minister" },
+      });
     }
 
     // Already invited/joined?

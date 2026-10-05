@@ -50,10 +50,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       return NextResponse.json({ error: "File too large. Max 2MB." }, { status: 400 });
     }
 
-    // Verify the member is a minister
+    // Verify the member is a minister (or room host)
     const member = await db.roomMember.findFirst({ where: { id: memberId, roomId: room.id } });
     if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 });
-    if (member.role !== "minister") {
+    const isMinister = member.role === "minister" || member.email === room.hostEmail;
+    if (!isMinister) {
       return NextResponse.json({ error: "Only the Kela Minister can manage sounds." }, { status: 403 });
     }
 
@@ -107,7 +108,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ code:
 
     const member = await db.roomMember.findFirst({ where: { id: memberId, roomId: room.id } });
     if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 });
-    if (member.role !== "minister") {
+    const isMinisterDel = member.role === "minister" || member.email === room.hostEmail;
+    if (!isMinisterDel) {
       return NextResponse.json({ error: "Only the Kela Minister can manage sounds." }, { status: 403 });
     }
 

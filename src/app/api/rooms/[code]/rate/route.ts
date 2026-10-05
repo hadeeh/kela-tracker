@@ -29,9 +29,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     // Determine whose rate to update
     const targetId = targetMemberId || memberId;
 
-    // If updating someone else, must be a minister
-    if (targetId !== memberId && requester.role !== "minister") {
-      return NextResponse.json({ error: "Only the Kela Minister can set other members' rates." }, { status: 403 });
+    // If updating someone else, must be a minister (or room host)
+    if (targetId !== memberId) {
+      const isMinister = requester.role === "minister" || requester.email === room.hostEmail;
+      if (!isMinister) {
+        return NextResponse.json({ error: "Only the Kela Minister can set other members' rates." }, { status: 403 });
+      }
     }
 
     const updated = await db.roomMember.update({
