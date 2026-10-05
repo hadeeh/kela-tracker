@@ -2,17 +2,16 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import type { VoteEndedPayload } from "./use-socket";
+import type { ActiveVote, EndedVote } from "./use-polling";
 
-type Props = {
+type AccusedProps = {
   open: boolean;
-  payload: VoteEndedPayload | null;
-  isAccusedMe: boolean;
+  activeVote: ActiveVote | null;
   onClose: () => void;
 };
 
-export function AccusedModal({ open, payload, onClose }: Omit<Props, "isAccusedMe">) {
-  if (!payload) return null;
+export function AccusedModal({ open, activeVote, onClose }: AccusedProps) {
+  if (!activeVote) return null;
   return (
     <Dialog open={open}>
       <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
@@ -22,14 +21,14 @@ export function AccusedModal({ open, payload, onClose }: Omit<Props, "isAccusedM
             <span>You&apos;ve been accused!</span>
           </DialogTitle>
           <DialogDescription className="text-center pt-1">
-            <span className="font-semibold text-foreground">{payload.accusedByName}</span> thinks you ate kela.
+            <span className="font-semibold text-foreground">{activeVote.accusedByName}</span> thinks you ate kela.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-4 text-center">
             <div className="text-sm text-yellow-700 font-medium">Reason</div>
             <div className="text-sm text-yellow-900 mt-1 italic">
-              {payload.reason ? `"${payload.reason}"` : "No reason given"}
+              {activeVote.reason ? `"${activeVote.reason}"` : "No reason given"}
             </div>
           </div>
           <p className="text-sm text-muted-foreground text-center">
@@ -44,12 +43,18 @@ export function AccusedModal({ open, payload, onClose }: Omit<Props, "isAccusedM
   );
 }
 
-export function ResultModal({ open, payload, isAccusedMe, onClose }: Props) {
-  if (!payload) return null;
+type ResultProps = {
+  open: boolean;
+  endedVote: EndedVote | null;
+  onClose: () => void;
+};
 
-  const isGuilty = payload.verdict === "kela";
-  const isInnocent = payload.verdict === "saeb";
-  const isTie = payload.verdict === "tie";
+export function ResultModal({ open, endedVote, onClose }: ResultProps) {
+  if (!endedVote) return null;
+
+  const isGuilty = endedVote.verdict === "kela";
+  const isInnocent = endedVote.verdict === "saeb";
+  const isTie = endedVote.verdict === "tie";
 
   return (
     <Dialog open={open}>
@@ -64,33 +69,33 @@ export function ResultModal({ open, payload, isAccusedMe, onClose }: Props) {
             </span>
           </DialogTitle>
           <DialogDescription className="text-center pt-2">
-            {isAccusedMe
+            {endedVote.isAccusedMe
               ? isGuilty
                 ? "You ate kela. Fine added. 💸"
                 : isInnocent
                 ? "Phew! You're off the hook."
                 : "Jury couldn't decide. No fine."
-              : `${payload.accusedName} ${isGuilty ? "is guilty" : isInnocent ? "is innocent" : "got a tie"}.`}
+              : `${endedVote.accusedName} ${isGuilty ? "is guilty" : isInnocent ? "is innocent" : "got a tie"}.`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className={`rounded-lg p-4 text-center border ${isGuilty ? "bg-yellow-100 border-yellow-300" : "bg-muted border-border"}`}>
-              <div className="text-3xl font-bold">{payload.votesYes}</div>
+              <div className="text-3xl font-bold">{endedVote.votesYes}</div>
               <div className="text-xs font-medium text-muted-foreground mt-1">🍌 Kela</div>
             </div>
             <div className={`rounded-lg p-4 text-center border ${isInnocent ? "bg-red-50 border-red-300" : "bg-muted border-border"}`}>
-              <div className="text-3xl font-bold">{payload.votesNo}</div>
+              <div className="text-3xl font-bold">{endedVote.votesNo}</div>
               <div className="text-xs font-medium text-muted-foreground mt-1">🍎 Saeb</div>
             </div>
           </div>
 
           <div className="rounded-lg bg-muted/50 p-3 text-center text-sm">
-            <div className="font-medium">{payload.accusedName}</div>
+            <div className="font-medium">{endedVote.accusedName}</div>
             <div className="text-muted-foreground text-xs mt-1">
-              accused by {payload.accusedByName}
-              {payload.reason ? ` · "${payload.reason}"` : ""}
+              accused by {endedVote.accusedByName}
+              {endedVote.reason ? ` · "${endedVote.reason}"` : ""}
             </div>
           </div>
 

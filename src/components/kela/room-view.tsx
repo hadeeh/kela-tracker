@@ -24,16 +24,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, LogOut, Wifi, WifiOff, Copy, Mail, Check, Users, ExternalLink, Crown } from "lucide-react";
+import { Loader2, LogOut, Copy, Mail, Check, Users, Crown } from "lucide-react";
 import { toast } from "sonner";
 import {
-  useSocket, type VoteStartedPayload, type VoteUpdatePayload, type VoteEndedPayload, type AccusedPayload,
-} from "./use-socket";
+  usePolling, type ActiveVote, type EndedVote,
+} from "./use-polling";
 import { useSounds, useRoomSounds } from "./use-sounds";
 import { VoteModal } from "./vote-modal";
 import { AccusedModal, ResultModal } from "./modals";
 import { SoundManager } from "./sound-manager";
-import { getBadge, getNextBadge, BADGE_TIERS, type BadgeTier } from "@/lib/badges";
+import { getBadge, getNextBadge, BADGE_TIERS } from "@/lib/badges";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; joinedAt: string };
@@ -67,7 +67,6 @@ export function RoomView({ room, me }: Props) {
   const [members, setMembers] = useState<Member[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [onlineCount, setOnlineCount] = useState(0);
 
   // ---- Settings state ---------------------------------------------------
   const [rateInput, setRateInput] = useState("50");
@@ -88,77 +87,85 @@ export function RoomView({ room, me }: Props) {
 
   // ---- Active vote modal (I'm a voter) ---------------------------------
   const [voteOpen, setVoteOpen] = useState(false);
-  const [votePayload, setVotePayload] = useState<VoteStartedPayload | null>(null);
-  const [voteUpdate, setVoteUpdate] = useState<VoteUpdatePayload | null>(null);
   const [votedChoice, setVotedChoice] = useState<"kela" | "saeb" | null>(null);
 
   // ---- Accused modal (I'm the accused) ---------------------------------
   const [accusedOpen, setAccusedOpen] = useState(false);
-  const [accusedPayload, setAccusedPayload] = useState<AccusedPayload | null>(null);
 
   // ---- Result modal -----------------------------------------------------
   const [resultOpen, setResultOpen] = useState(false);
-  const [resultPayload, setResultPayload] = useState<VoteEndedPayload | null>(null);
 
-  // ---- Socket event handlers (with sounds) -----------------------------
-  const onVoteStarted = useCallback((p: VoteStartedPayload) => {
-    if (p.accusedId === me.memberId) return; // I'll get 'accused' instead
-    setVotePayload(p);
-    setVoteUpdate(null);
-    setVotedChoice(null);
+  // ---- Polling handlers (with sounds) ---------------------------------
+  const onVoteStarted = useCallback((av: ActiveVote) => {
+    setVotedChoice(av.myVote);
     setVoteOpen(true);
+    setAccusedOpen(false);
     play("vote-start"); // 📣 Kelaaaa!
-    toast.message(`🍌 Vote started against ${p.accusedName}!`);
-  }, [me.memberId, play]);
+    toast.message(`🍌 Vote started against ${av.accusedName}!`);
+  }, [play]);
 
-  const onAccused = useCallback((p: AccusedPayload) => {
-    setAccusedPayload(p);
+  const onAccused = useCallback((_av: ActiveVote) => {
     setAccusedOpen(true);
+    setVoteOpen(false);
     play("vote-start"); // 📣 Kelaaaa!
   }, [play]);
 
-  const onVoteUpdate = useCallback((p: VoteUpdatePayload) => {
-    setVoteUpdate(p);
-    // Play kela-vote sound when someone votes kela (not for my own vote — handled in castVote)
-    if (p.lastChoice === "kela" && p.voterName !== me.memberName) {
-      play("kela-vote");
-    }
-  }, [me.memberName, play]);
+  const onVoteUpdate = useCallback((_yes: number, _no: number, lastChoice: "kela" | "saeb") => {
+    if (lastChoice === "kela") play("kela-vote");
+    else play("saeb-vote");
+  }, [play]);
 
-  const onVoteEnded = useCallback((p: VoteEndedPayload) => {
+  const onVoteEnded = useCallback((ev: EndedVote) => {
     setVoteOpen(false);
     setAccusedOpen(false);
-    setVotePayload(null);
     setVotedChoice(null);
-
-    setResultPayload(p);
     setResultOpen(true);
 
     // Play verdict sound
-    if (p.verdict === "kela") play("result-kela");
-    else if (p.verdict === "saeb") play("result-saeb");
+    if (ev.verdict === "kela") play("result-kela");
+    else if (ev.verdict === "saeb") play("result-saeb");
     else play("result-tie");
 
     setTimeout(() => { refreshData(); }, 400);
 
-    if (p.verdict === "kela") {
-      toast.success(`🍌 ${p.accusedName} confirmed kela! Fine added.`);
-    } else if (p.verdict === "saeb") {
-      toast.info(`🍎 ${p.accusedName} is innocent. Saeb!`);
+    if (ev.verdict === "kela") {
+      toast.success(`🍌 ${ev.accusedName} confirmed kela! Fine added.`);
+    } else if (ev.verdict === "saeb") {
+      toast.info(`🍎 ${ev.accusedName} is innocent. Saeb!`);
     } else {
-      toast.message(`🤷 It's a tie for ${p.accusedName}.`);
+      toast.message(`🤷 It's a tie for ${ev.accusedName}.`);
     }
   }, [play]);
 
-  const onOnlineCount = useCallback((n: number) => setOnlineCount(n), []);
-
-  const { connected, startVote, castVote } = useSocket(room.id, me.memberId, me.memberName, {
+  const {
+    activeVote, endedVote, startVote, castVote, dismissEndedVote,
+  } = usePolling(room.code, me.memberId, {
     onVoteStarted,
     onAccused,
     onVoteUpdate,
     onVoteEnded,
-    onOnlineCount,
   });
+
+  // Sync modal state with polling state
+  useEffect(() => {
+    if (activeVote) {
+      if (activeVote.isAccused) {
+        if (!accusedOpen) setAccusedOpen(true);
+      } else {
+        if (!voteOpen) setVoteOpen(true);
+      }
+      setVotedChoice(activeVote.myVote);
+    } else {
+      if (voteOpen) setVoteOpen(false);
+      if (accusedOpen) setAccusedOpen(false);
+    }
+  }, [activeVote]);
+
+  useEffect(() => {
+    if (endedVote) {
+      setResultOpen(true);
+    }
+  }, [endedVote]);
 
   // ---- Data fetching ----------------------------------------------------
   const refreshData = useCallback(async () => {
@@ -239,10 +246,6 @@ export function RoomView({ room, me }: Props) {
       reason: accuseReason.trim() || null,
     });
     setStartingVote(false);
-    if (!result) {
-      toast.error("Could not start vote. Try again.");
-      return;
-    }
     if (result.error) {
       toast.error(result.error);
       return;
@@ -253,10 +256,10 @@ export function RoomView({ room, me }: Props) {
   }
 
   async function handleCastVote(choice: "kela" | "saeb") {
-    if (!votePayload) return;
-    const r = await castVote({ incidentId: votePayload.incidentId, choice });
-    if (!r || r.error) {
-      toast.error(r?.error || "Vote failed.");
+    if (!activeVote) return;
+    const r = await castVote(activeVote.incidentId, choice);
+    if (r.error) {
+      toast.error(r.error);
       return;
     }
     setVotedChoice(choice);
@@ -320,11 +323,6 @@ export function RoomView({ room, me }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant={connected ? "default" : "secondary"} className={connected ? "bg-green-500 hover:bg-green-500 text-white" : ""}>
-              {connected ? <Wifi className="h-3 w-3 mr-1" /> : <WifiOff className="h-3 w-3 mr-1" />}
-              {connected ? "Online" : "Offline"}
-            </Badge>
-            <Badge variant="outline">{onlineCount} online</Badge>
             <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)}>
               <Mail className="h-4 w-4 mr-1" /> Invite
             </Button>
@@ -760,8 +758,7 @@ export function RoomView({ room, me }: Props) {
       {/* Active vote modal (I'm a voter) */}
       <VoteModal
         open={voteOpen}
-        payload={votePayload}
-        updates={voteUpdate}
+        activeVote={activeVote}
         onVote={handleCastVote}
         votedChoice={votedChoice}
       />
@@ -769,16 +766,15 @@ export function RoomView({ room, me }: Props) {
       {/* Accused modal (I'm the accused) */}
       <AccusedModal
         open={accusedOpen}
-        payload={accusedPayload}
+        activeVote={activeVote}
         onClose={() => setAccusedOpen(false)}
       />
 
       {/* Result modal */}
       <ResultModal
         open={resultOpen}
-        payload={resultPayload}
-        isAccusedMe={resultPayload?.accusedId === me.memberId}
-        onClose={() => setResultOpen(false)}
+        endedVote={endedVote}
+        onClose={() => { setResultOpen(false); dismissEndedVote(); }}
       />
     </div>
   );

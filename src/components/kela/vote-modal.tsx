@@ -4,12 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import type { VoteStartedPayload, VoteUpdatePayload } from "./use-socket";
+import type { ActiveVote } from "./use-polling";
 
 type Props = {
   open: boolean;
-  payload: VoteStartedPayload | null;
-  updates: VoteUpdatePayload | null;
+  activeVote: ActiveVote | null;
   onVote: (choice: "kela" | "saeb") => void;
   votedChoice: "kela" | "saeb" | null;
 };
@@ -29,15 +28,17 @@ function useCountdown(endsAt: number | null) {
   return remaining;
 }
 
-export function VoteModal({ open, payload, updates, onVote, votedChoice }: Props) {
-  const remaining = useCountdown(payload?.endsAt ?? null);
-  const totalVotes = (updates?.votesYes ?? 0) + (updates?.votesNo ?? 0);
+export function VoteModal({ open, activeVote, onVote, votedChoice }: Props) {
+  const remaining = useCountdown(activeVote?.endsAt ?? null);
+  const votesYes = activeVote?.votesYes ?? 0;
+  const votesNo = activeVote?.votesNo ?? 0;
+  const totalVotes = votesYes + votesNo;
 
   const progressPct = useMemo(() => {
-    if (!payload) return 0;
-    const total = Math.max(1, Math.round((payload.endsAt - payload.startedAt) / 1000));
+    if (!activeVote) return 0;
+    const total = Math.max(1, Math.round((activeVote.endsAt - activeVote.startedAt) / 1000));
     return Math.min(100, Math.max(0, ((total - remaining) / total) * 100));
-  }, [payload, remaining]);
+  }, [activeVote, remaining]);
 
   return (
     <Dialog open={open}>
@@ -52,18 +53,18 @@ export function VoteModal({ open, payload, updates, onVote, votedChoice }: Props
           </DialogDescription>
         </DialogHeader>
 
-        {payload && (
+        {activeVote && (
           <div className="space-y-4">
             <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-4 text-center">
               <div className="text-sm text-yellow-700 font-medium">Accused</div>
-              <div className="text-2xl font-bold text-yellow-900 mt-1">{payload.accusedName}</div>
-              {payload.reason ? (
-                <div className="text-sm text-yellow-800 mt-2 italic">&ldquo;{payload.reason}&rdquo;</div>
+              <div className="text-2xl font-bold text-yellow-900 mt-1">{activeVote.accusedName}</div>
+              {activeVote.reason ? (
+                <div className="text-sm text-yellow-800 mt-2 italic">&ldquo;{activeVote.reason}&rdquo;</div>
               ) : (
                 <div className="text-sm text-yellow-700 mt-2 italic">No reason given</div>
               )}
               <div className="text-xs text-yellow-700 mt-2">
-                Accused by <span className="font-semibold">{payload.accusedByName}</span>
+                Accused by <span className="font-semibold">{activeVote.accusedByName}</span>
               </div>
             </div>
 
@@ -82,11 +83,11 @@ export function VoteModal({ open, payload, updates, onVote, votedChoice }: Props
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg bg-yellow-100 border border-yellow-200 p-3 text-center">
-                    <div className="text-2xl font-bold text-yellow-900">{updates?.votesYes ?? 0}</div>
+                    <div className="text-2xl font-bold text-yellow-900">{votesYes}</div>
                     <div className="text-xs text-yellow-700 font-medium">🍌 Kela</div>
                   </div>
                   <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-center">
-                    <div className="text-2xl font-bold text-red-700">{updates?.votesNo ?? 0}</div>
+                    <div className="text-2xl font-bold text-red-700">{votesNo}</div>
                     <div className="text-xs text-red-600 font-medium">🍎 Saeb</div>
                   </div>
                 </div>

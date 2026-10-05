@@ -23,16 +23,14 @@ Catch your friends eating kela (getting offended)! Real-time Among Us-style voti
 
 - **Frontend**: Next.js 16, TypeScript, Tailwind CSS, shadcn/ui
 - **Database**: PostgreSQL (Neon/Supabase) via Prisma ORM
-- **Real-time**: Socket.IO (deployed as a separate service)
+- **Real-time**: HTTP polling (1.5-second interval) — no WebSocket server needed!
 - **Sounds**: TTS-generated defaults + custom uploads stored in DB
 
 ---
 
-## 🚀 Deployment Guide
+## 🚀 Deployment Guide (Vercel only — 100% free!)
 
-This app has **two components** that need to be deployed:
-1. **Next.js app** (the main website) → deploy to Vercel
-2. **Vote service** (Socket.IO server for real-time voting) → deploy to Railway
+This app uses **HTTP polling** instead of WebSockets, so it runs entirely on Vercel's free tier. No second service needed!
 
 ### Step 1: Get the code on GitHub
 
@@ -53,72 +51,39 @@ This app has **two components** that need to be deployed:
 1. Go to [Neon](https://neon.tech) → sign up (free, no credit card)
 2. Create a new project → copy the **connection string**
 3. It looks like: `postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/kela?sslmode=require`
-4. Save this — you'll need it for both deployments
+4. Save this — you'll need it for Vercel
 
-### Step 3: Deploy the Vote Service to Railway
-
-1. Go to [Railway](https://railway.app) → sign up with GitHub
-2. Click **"New Project"** → **"Deploy from GitHub repo"**
-3. Select your `kela-tracker` repo
-4. Railway will detect the project. **Set these settings:**
-   - **Root Directory**: `mini-services/vote-service`
-   - **Build Command**: `bun install`
-   - **Start Command**: `bun run index.ts`
-   - (Railway auto-detects the `package.json` and `bun` runtime)
-5. Go to **Settings → Variables** and add:
-   - `INTERNAL_SECRET` = any random string (e.g., `my-secret-123`)
-   - `NEXTAUTH_BASE` = `https://YOUR-VERCEL-URL.vercel.app` (you'll get this in Step 4 — come back and set it later)
-6. Railway gives you a URL like `https://kela-vote-service.up.railway.app` — save this!
-
-### Step 4: Deploy the Next.js App to Vercel
+### Step 3: Deploy to Vercel
 
 1. Go to [Vercel](https://vercel.com) → sign up with GitHub
 2. Click **"New Project"** → import your `kela-tracker` repo
-3. Vercel auto-detects Next.js. Just add **Environment Variables**:
-   - `DATABASE_URL` = your Neon PostgreSQL connection string (from Step 2)
-   - `INTERNAL_SECRET` = the same string you used on Railway
-   - `NEXT_PUBLIC_SOCKET_URL` = your Railway vote-service URL (from Step 3)
-   - `NEXT_PUBLIC_SOCKET_PATH` = `/`
-4. Click **Deploy** → wait 2-3 minutes
-5. Your app is live at `https://kela-tracker.vercel.app` 🎉
+3. Vercel auto-detects Next.js — don't change any build settings
+4. Add **Environment Variables**:
+   - `DATABASE_URL` = your Neon connection string (from Step 2)
+   - `INTERNAL_SECRET` = any random string (e.g., `kela-secret-2026`)
+5. Click **Deploy** → wait 2-3 minutes
+6. Your app is live at `https://kela-tracker.vercel.app` 🎉
 
-### Step 5: Update Railway with your Vercel URL
+### Step 4: Set up the database
 
-1. Go back to Railway → your vote-service project → Settings → Variables
-2. Set `NEXTAUTH_BASE` = `https://kela-tracker.vercel.app` (your Vercel URL)
-3. Railway auto-redeploys. Done!
-
-### Step 6: Set up the database
-
-After your first deployment, run the database migration:
+After deployment, run the database migration:
 
 ```bash
 # On your computer, in the project directory:
-# 1. Create a .env file with your DATABASE_URL
 cp .env.example .env
 # Edit .env and paste your DATABASE_URL
 
-# 2. Install dependencies
-bun install
-
-# 3. Push the database schema
-bun run db:push
+npm install        # or: bun install
+npm run db:push    # or: bun run db:push
 ```
 
-Or use Vercel's CLI:
-```bash
-npm i -g vercel
-vercel login
-vercel link
-vercel env pull .env
-bun run db:push
-```
+Type `y` when it asks to confirm. This creates all the tables in your database.
 
-### Step 7: Test it! 🎉
+### Step 5: Test it! 🎉
 
 1. Visit your Vercel URL
 2. Create a room → get a code like `KELA-ABC23`
-3. Copy the invite link → open in another browser/device
+3. Copy the invite link → open in another browser/incognito
 4. Join as a different person
 5. Start accusing! Click "🍌 Kelaaaa" → vote popup appears → vote → hear sounds!
 
@@ -128,7 +93,7 @@ bun run db:push
 
 ```bash
 # 1. Install dependencies
-bun install
+bun install   # or: npm install
 
 # 2. Set up environment
 cp .env.example .env
@@ -137,15 +102,10 @@ cp .env.example .env
 # 3. Push database schema
 bun run db:push
 
-# 4. Start the Next.js dev server
+# 4. Start the dev server
 bun run dev
 
-# 5. In another terminal, start the vote-service
-cd mini-services/vote-service
-bun install
-bun run dev
-
-# 6. Open http://localhost:3000
+# 5. Open http://localhost:3000
 ```
 
 ---
@@ -166,9 +126,9 @@ kela-tracker/
 │   │   │   │   │   ├── members/        # POST: invite by email
 │   │   │   │   │   ├── rate/           # POST: update rate
 │   │   │   │   │   ├── incidents/      # GET: recent incidents
-│   │   │   │   │   └── sounds/         # GET/POST/DELETE: custom sounds
-│   │   │   ├── vote-start/             # Internal: create incident
-│   │   │   └── vote-cast/              # Internal: record vote + finalize
+│   │   │   │   │   ├── sounds/         # GET/POST/DELETE: custom sounds
+│   │   │   │   │   ├── active-vote/    # GET: current active vote (polling)
+│   │   │   │   │   └── votes/          # POST: start/cast votes
 │   │   ├── layout.tsx
 │   │   └── globals.css
 │   ├── components/
@@ -179,7 +139,7 @@ kela-tracker/
 │   │   │   ├── vote-modal.tsx          # Vote popup
 │   │   │   ├── modals.tsx              # Accused + Result modals
 │   │   │   ├── sound-manager.tsx       # Sound upload UI (minister only)
-│   │   │   ├── use-socket.ts           # Socket.IO client hook
+│   │   │   ├── use-polling.ts          # Polling hook (replaces WebSockets)
 │   │   │   └── use-sounds.ts           # Sound playback hook
 │   │   └── ui/                         # shadcn/ui components
 │   ├── lib/
@@ -190,10 +150,6 @@ kela-tracker/
 │   └── schema.prisma                   # Database schema (PostgreSQL)
 ├── public/
 │   └── sounds/                         # Default TTS sound files
-├── mini-services/
-│   └── vote-service/                   # Socket.IO server (deploy separately)
-│       ├── index.ts
-│       └── package.json
 ├── package.json
 ├── next.config.ts
 ├── .env.example
@@ -206,42 +162,23 @@ kela-tracker/
 
 | Variable | Where | Description |
 |---|---|---|
-| `DATABASE_URL` | Vercel + Railway | PostgreSQL connection string |
-| `INTERNAL_SECRET` | Vercel + Railway | Shared secret for internal API calls |
-| `NEXT_PUBLIC_SOCKET_URL` | Vercel only | URL of your deployed vote-service |
-| `NEXT_PUBLIC_SOCKET_PATH` | Vercel only | Usually `/` |
-| `NEXTAUTH_BASE` | Railway only | URL of your deployed Next.js app |
-| `PORT` | Railway only | Auto-set by Railway |
+| `DATABASE_URL` | Vercel + local | PostgreSQL connection string |
+| `INTERNAL_SECRET` | Vercel + local | Shared secret for internal API calls |
 
----
-
-## 🏆 Badge Tiers
-
-| Kelas Eaten | Tier | Title |
-|---|---|---|
-| 1+ | Rookie | 🍌 Kela Eater |
-| 5+ | Starter | 🍌 Kela Regular |
-| 10+ | Bronze | 🥉 Kela Boss |
-| 20+ | Silver | 🥈 Kela Sultan |
-| 30+ | Gold | 🥇 Kela Emperor |
-| 50+ | Platinum | 💎 Kela Legend |
-| 100+ | Diamond | 👑 Kela Godfather |
+That's it! Only 2 environment variables needed.
 
 ---
 
 ## ❓ Troubleshooting
 
-**Q: The vote popup doesn't appear on other devices**
-A: Make sure `NEXT_PUBLIC_SOCKET_URL` on Vercel points to your Railway vote-service URL, and `NEXTAUTH_BASE` on Railway points to your Vercel URL.
+**Q: The vote popup appears 1-2 seconds late**
+A: This is expected — the app uses polling (checks every 1.5 seconds). For a friend group, this delay is barely noticeable.
 
 **Q: Custom sounds don't play**
 A: Browsers block autoplay until you interact with the page. Click anywhere first, then sounds will work. Also check that the sound file is under 2MB.
 
 **Q: Database errors**
-A: Make sure you ran `bun run db:push` with the correct `DATABASE_URL`. The schema uses PostgreSQL — SQLite won't work in production.
-
-**Q: The app shows "Offline" badge**
-A: The vote-service isn't running or the `NEXT_PUBLIC_SOCKET_URL` is wrong. Check Railway logs.
+A: Make sure you ran `bun run db:push` with the correct `DATABASE_URL`. The schema uses PostgreSQL — SQLite won't work.
 
 ---
 
