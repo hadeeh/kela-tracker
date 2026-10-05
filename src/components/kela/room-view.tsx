@@ -45,7 +45,7 @@ type Incident = {
   votesYes: number;
   votesNo: number;
   verdict: string;
-  settled: boolean;
+  paidAmount: number;
   settledAt: string | null;
   createdAt: string;
   user: { id: string; name: string; email: string; ratePerKela: number };
@@ -366,20 +366,26 @@ export function RoomView({ room, me }: Props) {
     setEditingRateValue(String(currentRate));
   }
 
-  // Minister: settle/unsettle a fine
-  async function handleSettle(incidentId: string) {
+  // Minister: record a payment for an incident
+  async function handleSettle(incidentId: string, paidAmount: number) {
     try {
       const res = await fetch(`/api/rooms/${room.code}/incidents/${incidentId}/settle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: me.memberId }),
+        body: JSON.stringify({ memberId: me.memberId, paidAmount }),
       });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data?.error || "Failed to settle.");
         return;
       }
-      toast.success(data.settled ? "✓ Fine settled!" : "Fine reopened.");
+      if (paidAmount === -1) {
+        toast.success("✓ Fine fully settled!");
+      } else if (paidAmount === 0) {
+        toast.success("Payment reset.");
+      } else {
+        toast.success(`✓ PKR ${paidAmount} recorded! Remaining: PKR ${data.remaining}`);
+      }
       refreshData();
     } catch (e: any) {
       toast.error(e?.message || "Failed to settle.");
@@ -413,11 +419,13 @@ export function RoomView({ room, me }: Props) {
   }
 
   // ---- Compute my fine + minister status ---------------------------------
-  // Only count UNSETTLED guilty incidents for the fine (settled = paid/waived)
-  const myGuiltyCount = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela").length;
-  const myUnsettledGuilty = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela" && !i.settled).length;
-  const myFine = myUnsettledGuilty * myRate;
-  const mySettledCount = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela" && i.settled).length;
+  // Fine = (guilty * rate) - totalPaidAmount
+  const myGuiltyIncidents = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela");
+  const myGuiltyCount = myGuiltyIncidents.length;
+  const myTotalPaid = myGuiltyIncidents.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
+  const myGrossFine = myGuiltyCount * myRate;
+  const myFine = Math.max(0, myGrossFine - myTotalPaid);
+  const mySettledCount = myGuiltyIncidents.filter((i) => (i.paidAmount || 0) >= myRate).length;
   const myMember = members.find((m) => m.id === me.memberId);
   const isMinister = myMember?.role === "minister";
   const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${room.code}`;
@@ -458,7 +466,10 @@ export function RoomView({ room, me }: Props) {
                   <div className="text-xs font-bold uppercase tracking-wider text-yellow-900/70">Your Total Fine Due</div>
                   <div className="text-4xl font-bold text-yellow-950 mt-1">PKR {myFine.toLocaleString()}</div>
                   <div className="text-sm text-yellow-900/80 mt-1">
-                    {myUnsettledGuilty} unpaid kela{myUnsettledGuilty === 1 ? "" : "s"}
+                    {myGuiltyCount} kela{myGuiltyCount === 1 ? "" : "s"} · PKR {myGrossFine.toLocaleString()} total
+                    {myTotalPaid > 0 && (
+                      <span> · PKR {myTotalPaid.toLocaleString()} paid</span>
+                    )}
                     {mySettledCount > 0 && (
                       <span className="text-green-700"> · {mySettledCount} settled ✓</span>
                     )}
@@ -562,14 +573,16 @@ export function RoomView({ room, me }: Props) {
                 const ranked = members
                   .map((m) => {
                     const guilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela").length;
-                    const unsettledGuilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela" && !i.settled).length;
+                    const memberIncidents = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela");
+                    const totalPaid = memberIncidents.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
+                    const grossFine = guilty * m.ratePerKela;
                     const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
                     return {
                       ...m,
                       guilty,
-                      unsettledGuilty,
+                      totalPaid,
                       totalAccused,
-                      totalFine: unsettledGuilty * m.ratePerKela,
+                      totalFine: Math.max(0, grossFine - totalPaid),
                       isMe: m.id === me.memberId,
                     };
                   })
@@ -682,10 +695,12 @@ export function RoomView({ room, me }: Props) {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {members.filter((m) => m.id !== me.memberId).map((m) => {
-                  const guilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela").length;
-                  const unsettledGuilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela" && !i.settled).length;
+                  const memberIncidents = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela");
+                  const guilty = memberIncidents.length;
+                  const totalPaid = memberIncidents.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
+                  const grossFine = guilty * m.ratePerKela;
                   const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
-                  const totalFine = unsettledGuilty * m.ratePerKela;
+                  const totalFine = Math.max(0, grossFine - totalPaid);
                   return (
                     <div key={m.id} className="rounded-xl border bg-card p-4 flex flex-col gap-3">
                       <div className="flex items-center gap-3">
@@ -822,21 +837,102 @@ export function RoomView({ room, me }: Props) {
                         <span>by {inc.accusedBy.name}</span>
                         <span>·</span>
                         <span>{inc.votes.length} voter{inc.votes.length === 1 ? "" : "s"}</span>
-                        {inc.settled && (
-                          <span className="text-green-600 font-semibold">· ✓ Settled</span>
+                        {inc.verdict === "kela" && (
+                          <>
+                            <span>·</span>
+                            <span>Fine: PKR {inc.user.ratePerKela}</span>
+                            {(inc.paidAmount || 0) > 0 && (
+                              <span className="text-green-600 font-semibold">· Paid: PKR {inc.paidAmount}</span>
+                            )}
+                            {(inc.paidAmount || 0) >= inc.user.ratePerKela && (
+                              <span className="text-green-600 font-semibold">· ✓ Settled</span>
+                            )}
+                          </>
                         )}
                       </div>
-                      {/* Minister actions: settle + delete (only for non-pending incidents) */}
-                      {isMinister && inc.verdict !== "pending" && (
+                      {/* Minister actions: settle payment + delete (only for kela verdict) */}
+                      {isMinister && inc.verdict === "kela" && (
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          {(() => {
+                            const rate = inc.user.ratePerKela;
+                            const paid = inc.paidAmount || 0;
+                            const remaining = Math.max(0, rate - paid);
+                            const fullySettled = paid >= rate;
+                            return (
+                              <>
+                                <input
+                                  type="number"
+                                  placeholder={`Pay (max ${remaining})`}
+                                  min={0}
+                                  max={remaining}
+                                  className="w-28 text-sm border rounded px-2 py-1"
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      const val = Number((e.target as HTMLInputElement).value);
+                                      if (val > 0) handleSettle(inc.id, val);
+                                      (e.target as HTMLInputElement).value = "";
+                                    }
+                                  }}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => {
+                                    const input = document.querySelector(`input[data-incident="${inc.id}"]`) as HTMLInputElement;
+                                    if (input) {
+                                      const val = Number(input.value);
+                                      if (val > 0) {
+                                        handleSettle(inc.id, val);
+                                        input.value = "";
+                                      } else {
+                                        toast.error("Enter a valid amount.");
+                                      }
+                                    } else {
+                                      // Fallback: prompt
+                                      const val = Number(prompt(`Enter amount to pay (remaining: PKR ${remaining}):`));
+                                      if (val > 0) handleSettle(inc.id, val);
+                                    }
+                                  }}
+                                  className="h-7 text-xs"
+                                  disabled={fullySettled}
+                                >
+                                  💵 Pay
+                                </Button>
+                                {!fullySettled && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleSettle(inc.id, -1)}
+                                    className="h-7 text-xs"
+                                  >
+                                    ✓ Settle Full
+                                  </Button>
+                                )}
+                                {paid > 0 && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleSettle(inc.id, 0)}
+                                    className="h-7 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                  >
+                                    ↩ Reset Payment
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDeleteIncident(inc.id, inc.user.name)}
+                                  className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  🗑 Delete
+                                </Button>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+                      {isMinister && inc.verdict === "saeb" && (
                         <div className="flex items-center gap-2 mt-2">
-                          <Button
-                            size="sm"
-                            variant={inc.settled ? "outline" : "secondary"}
-                            onClick={() => handleSettle(inc.id)}
-                            className="h-7 text-xs"
-                          >
-                            {inc.settled ? "↩ Reopen" : "✓ Settle Fine"}
-                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
