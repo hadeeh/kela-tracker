@@ -16,9 +16,10 @@ type SoundConfig = {
 };
 
 const SOUND_CONFIGS: SoundConfig[] = [
-  { type: "vote-start", label: "Vote Start", description: "Plays when someone starts a vote", emoji: "📣" },
-  { type: "kela-vote",  label: "Kela Vote",  description: "Plays when someone votes 🍌 Kela", emoji: "🍌" },
-  { type: "saeb-vote",  label: "Saeb Vote",  description: "Plays when someone votes 🍎 Saeb", emoji: "🍎" },
+  { type: "vote-start",  label: "Vote Start",         description: "Plays when someone starts a vote",                    emoji: "📣" },
+  { type: "kela-vote",   label: "Kela Vote",          description: "Plays when someone votes 🍌 Kela",                    emoji: "🍌" },
+  { type: "saeb-vote",   label: "Saeb Vote",          description: "Plays when someone votes 🍎 Saeb",                    emoji: "🍎" },
+  { type: "result-kela", label: "Kela Majority Wins", description: "Plays when voting closes with kela majority (>50%)",  emoji: "🎉" },
 ];
 
 type Props = {

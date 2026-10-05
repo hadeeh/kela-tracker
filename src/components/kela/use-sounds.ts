@@ -87,7 +87,7 @@ export function useRoomSounds(roomCode: string | null) {
         const data = await res.json();
         if (cancelled) return;
         const sounds = data.sounds as Record<string, string | null>;
-        const uploadable: SoundName[] = ["vote-start", "kela-vote", "saeb-vote"];
+        const uploadable: SoundName[] = ["vote-start", "kela-vote", "saeb-vote", "result-kela"];
         for (const t of uploadable) {
           if (sounds[t]) {
             customSounds[t] = `${sounds[t]}?t=${Date.now()}`;
@@ -112,7 +112,7 @@ export function useRoomSounds(roomCode: string | null) {
 
 // Refresh room sounds (call after uploading a new sound)
 export function refreshRoomSounds(roomCode: string) {
-  const uploadable: SoundName[] = ["vote-start", "kela-vote", "saeb-vote"];
+  const uploadable: SoundName[] = ["vote-start", "kela-vote", "saeb-vote", "result-kela"];
   for (const t of uploadable) {
     for (const key of Object.keys(audioPool)) {
       if (key.startsWith(t + ":")) {
