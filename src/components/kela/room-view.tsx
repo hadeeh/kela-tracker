@@ -135,6 +135,25 @@ export function RoomView({ room, me }: Props) {
     else if (ev.verdict === "saeb") play("result-saeb");
     else play("result-tie");
 
+    // Check for badge level-up (only on "kela" verdict)
+    if (ev.verdict === "kela") {
+      // The accused's guilty count after this vote = previous + 1
+      const prevGuilty = incidents.filter(
+        (i) => i.user.id === ev.accusedId && i.verdict === "kela"
+      ).length;
+      const newGuilty = prevGuilty + 1;
+
+      // Check if the new count matches a badge threshold
+      const badge = getBadge(newGuilty);
+      if (badge && newGuilty === badge.minKelas) {
+        // They just earned this badge! Play the badge sound after a short delay
+        setTimeout(() => {
+          play(badge.soundName as any);
+          toast.success(`🏅 ${ev.accusedName} just earned: ${badge.emoji} ${badge.title}!`);
+        }, 1500);
+      }
+    }
+
     setTimeout(() => { refreshData(); }, 400);
 
     if (ev.verdict === "kela") {
@@ -144,7 +163,7 @@ export function RoomView({ room, me }: Props) {
     } else {
       toast.message(`🤷 It's a tie for ${ev.accusedName}.`);
     }
-  }, [play]);
+  }, [play, incidents]);
 
   const {
     activeVote, endedVote, startVote, castVote, dismissEndedVote,

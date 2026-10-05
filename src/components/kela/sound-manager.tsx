@@ -22,6 +22,16 @@ const SOUND_CONFIGS: SoundConfig[] = [
   { type: "result-kela", label: "Kela Majority Wins", description: "Plays when voting closes with kela majority (>50%)",  emoji: "🎉" },
 ];
 
+const BADGE_SOUND_CONFIGS: SoundConfig[] = [
+  { type: "badge-rookie",    label: "🍌 Kela Eater (1+)",      description: "Plays when someone eats their 1st kela",          emoji: "🍌" },
+  { type: "badge-starter",   label: "🍌 Kela Regular (5+)",   description: "Plays when someone reaches 5 kelas",              emoji: "🍌" },
+  { type: "badge-bronze",    label: "🥉 Bronze: Kela Boss (10+)",  description: "Plays when someone reaches 10 kelas",        emoji: "🥉" },
+  { type: "badge-silver",    label: "🥈 Silver: Kela Sultan (20+)", description: "Plays when someone reaches 20 kelas",       emoji: "🥈" },
+  { type: "badge-gold",      label: "🥇 Gold: Kela Emperor (30+)", description: "Plays when someone reaches 30 kelas",        emoji: "🥇" },
+  { type: "badge-platinum",  label: "💎 Platinum: Kela Legend (50+)", description: "Plays when someone reaches 50 kelas",     emoji: "💎" },
+  { type: "badge-diamond",   label: "👑 Diamond: Kela Godfather (100+)", description: "Plays when someone reaches 100 kelas",  emoji: "👑" },
+];
+
 type Props = {
   roomCode: string;
   memberId: string;
@@ -124,6 +134,8 @@ export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Vote sounds */}
+        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Vote Sounds</div>
         {SOUND_CONFIGS.map((config) => (
           <div key={config.type} className="rounded-lg border bg-white p-4 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -193,8 +205,82 @@ export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
             </div>
           </div>
         ))}
+
+        {/* Badge sounds */}
+        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground pt-2">🏅 Badge Sounds</div>
+        <p className="text-xs text-muted-foreground -mt-2">Plays when someone earns a new badge by eating enough kelas.</p>
+        {BADGE_SOUND_CONFIGS.map((config) => (
+          <div key={config.type} className="rounded-lg border bg-white p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-2xl">{config.emoji}</span>
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm">{config.label}</div>
+                  <div className="text-xs text-muted-foreground">{config.description}</div>
+                </div>
+              </div>
+              {customStatus[config.type] && (
+                <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 flex-shrink-0">
+                  Custom
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                ref={(el) => { fileRefs.current[config.type] = el; }}
+                type="file"
+                accept="audio/wav,audio/mpeg,audio/ogg,audio/mp4,audio/webm,.wav,.mp3,.ogg,.m4a,.webm"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUpload(config.type, file);
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => fileRefs.current[config.type]?.click()}
+                disabled={uploading === config.type}
+              >
+                {uploading === config.type ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-1" />
+                )}
+                Upload
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => previewSound(config.type)}
+                disabled={uploading === config.type}
+              >
+                <Play className="h-4 w-4 mr-1" />
+                Preview
+              </Button>
+              {customStatus[config.type] && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleReset(config.type)}
+                  disabled={deleting === config.type}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  {deleting === config.type ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-1" />
+                  )}
+                  Reset
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
+
         <div className="rounded-lg bg-yellow-100/50 border border-yellow-200 p-3 text-xs text-yellow-800">
-          💡 <b>Tip:</b> Upload short audio clips (1-5 seconds) for the best experience. Max 5MB per file. Supported formats: WAV, MP3, OGG, M4A, WebM.
+          💡 <b>Tip:</b> Upload short audio clips (1-5 seconds) for the best experience. Max 2MB per file. Supported formats: WAV, MP3, OGG, M4A, WebM.
         </div>
       </CardContent>
     </Card>

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const VALID_TYPES = ["vote-start", "kela-vote", "saeb-vote", "result-kela"];
+const VALID_TYPES = [
+  "vote-start", "kela-vote", "saeb-vote", "result-kela",
+  "badge-rookie", "badge-starter", "badge-bronze", "badge-silver",
+  "badge-gold", "badge-platinum", "badge-diamond",
+];
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB (stored in DB, keep small)
 
 // GET /api/rooms/[code]/sounds — list which custom sounds exist for this room

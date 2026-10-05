@@ -8,6 +8,7 @@ export type BadgeTier = {
   emoji: string;      // Badge emoji
   color: string;      // Tailwind classes for the badge
   description: string;
+  soundName: string;  // Sound type for this badge (e.g., "badge-bronze")
 };
 
 export const BADGE_TIERS: BadgeTier[] = [
@@ -18,6 +19,7 @@ export const BADGE_TIERS: BadgeTier[] = [
     emoji: "👑",
     color: "bg-purple-100 text-purple-800 border-purple-300",
     description: "100+ kelas — the ultimate kela overlord",
+    soundName: "badge-diamond",
   },
   {
     minKelas: 50,
@@ -26,6 +28,7 @@ export const BADGE_TIERS: BadgeTier[] = [
     emoji: "💎",
     color: "bg-cyan-100 text-cyan-800 border-cyan-300",
     description: "50+ kelas — a living legend of kela eating",
+    soundName: "badge-platinum",
   },
   {
     minKelas: 30,
@@ -34,6 +37,7 @@ export const BADGE_TIERS: BadgeTier[] = [
     emoji: "🥇",
     color: "bg-amber-100 text-amber-800 border-amber-300",
     description: "30+ kelas — ruler of the kela empire",
+    soundName: "badge-gold",
   },
   {
     minKelas: 20,
@@ -42,6 +46,7 @@ export const BADGE_TIERS: BadgeTier[] = [
     emoji: "🥈",
     color: "bg-gray-100 text-gray-800 border-gray-300",
     description: "20+ kelas — royalty among kela eaters",
+    soundName: "badge-silver",
   },
   {
     minKelas: 10,
@@ -50,6 +55,7 @@ export const BADGE_TIERS: BadgeTier[] = [
     emoji: "🥉",
     color: "bg-orange-100 text-orange-800 border-orange-300",
     description: "10+ kelas — a certified kela boss",
+    soundName: "badge-bronze",
   },
   {
     minKelas: 5,
@@ -58,6 +64,7 @@ export const BADGE_TIERS: BadgeTier[] = [
     emoji: "🍌",
     color: "bg-yellow-100 text-yellow-800 border-yellow-300",
     description: "5+ kelas — getting comfortable eating kela",
+    soundName: "badge-starter",
   },
   {
     minKelas: 1,
@@ -66,6 +73,7 @@ export const BADGE_TIERS: BadgeTier[] = [
     emoji: "🍌",
     color: "bg-yellow-50 text-yellow-700 border-yellow-200",
     description: "1+ kela — welcome to the kela club",
+    soundName: "badge-rookie",
   },
 ];
 

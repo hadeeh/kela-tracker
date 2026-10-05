@@ -2,16 +2,34 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type SoundName = "vote-start" | "kela-vote" | "saeb-vote" | "result-kela" | "result-saeb" | "result-tie";
+export type SoundName =
+  | "vote-start" | "kela-vote" | "saeb-vote"
+  | "result-kela" | "result-saeb" | "result-tie"
+  | "badge-rookie" | "badge-starter" | "badge-bronze" | "badge-silver"
+  | "badge-gold" | "badge-platinum" | "badge-diamond";
 
 const DEFAULT_SOUND_FILES: Record<SoundName, string> = {
-  "vote-start":   "/sounds/vote-start.wav",
-  "kela-vote":    "/sounds/kela-vote.wav",
-  "saeb-vote":    "/sounds/saeb-vote.wav",
-  "result-kela":  "/sounds/result-kela.wav",
-  "result-saeb":  "/sounds/result-saeb.wav",
-  "result-tie":   "/sounds/result-tie.wav",
+  "vote-start":       "/sounds/vote-start.wav",
+  "kela-vote":        "/sounds/kela-vote.wav",
+  "saeb-vote":        "/sounds/saeb-vote.wav",
+  "result-kela":      "/sounds/result-kela.wav",
+  "result-saeb":      "/sounds/result-saeb.wav",
+  "result-tie":       "/sounds/result-tie.wav",
+  "badge-rookie":     "/sounds/badge-rookie.wav",
+  "badge-starter":    "/sounds/badge-starter.wav",
+  "badge-bronze":     "/sounds/badge-bronze.wav",
+  "badge-silver":     "/sounds/badge-silver.wav",
+  "badge-gold":       "/sounds/badge-gold.wav",
+  "badge-platinum":   "/sounds/badge-platinum.wav",
+  "badge-diamond":    "/sounds/badge-diamond.wav",
 };
+
+// All sound types that can be customized by the minister
+export const UPLOADABLE_SOUNDS: SoundName[] = [
+  "vote-start", "kela-vote", "saeb-vote", "result-kela",
+  "badge-rookie", "badge-starter", "badge-bronze", "badge-silver",
+  "badge-gold", "badge-platinum", "badge-diamond",
+];
 
 // Singleton audio element pool — reuses the same <audio> per sound for snappy playback.
 let audioPool: Partial<Record<string, HTMLAudioElement>> = {};
@@ -87,7 +105,7 @@ export function useRoomSounds(roomCode: string | null) {
         const data = await res.json();
         if (cancelled) return;
         const sounds = data.sounds as Record<string, string | null>;
-        const uploadable: SoundName[] = ["vote-start", "kela-vote", "saeb-vote", "result-kela"];
+        const uploadable = UPLOADABLE_SOUNDS;
         for (const t of uploadable) {
           if (sounds[t]) {
             customSounds[t] = `${sounds[t]}?t=${Date.now()}`;
@@ -112,7 +130,7 @@ export function useRoomSounds(roomCode: string | null) {
 
 // Refresh room sounds (call after uploading a new sound)
 export function refreshRoomSounds(roomCode: string) {
-  const uploadable: SoundName[] = ["vote-start", "kela-vote", "saeb-vote", "result-kela"];
+  const uploadable = UPLOADABLE_SOUNDS;
   for (const t of uploadable) {
     for (const key of Object.keys(audioPool)) {
       if (key.startsWith(t + ":")) {
