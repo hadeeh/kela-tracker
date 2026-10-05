@@ -32,10 +32,9 @@ export async function POST(
       return NextResponse.json({ error: "Only the Kela Minister can settle payments." }, { status: 403 });
     }
 
-    // Find the incident with the accused member's rate
+    // Find the incident (use rateAtTime — the historical rate when incident was created)
     const incident = await db.kelaIncident.findUnique({
       where: { id: incidentId },
-      include: { user: { select: { ratePerKela: true } } },
     });
     if (!incident) return NextResponse.json({ error: "Incident not found." }, { status: 404 });
     if (incident.roomId !== room.id) return NextResponse.json({ error: "Wrong room." }, { status: 400 });
@@ -43,7 +42,7 @@ export async function POST(
       return NextResponse.json({ error: "Cannot settle a pending vote." }, { status: 400 });
     }
 
-    const rate = incident.user.ratePerKela;
+    const rate = incident.rateAtTime; // use historical rate, not current member rate
 
     // Determine the new paidAmount
     let newPaidAmount: number;

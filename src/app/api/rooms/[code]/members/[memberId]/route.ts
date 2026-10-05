@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 // DELETE /api/rooms/[code]/members/[memberId]
-// Removes a member from the room (minister only).
-// Cascades: deletes their incidents (as accused), their votes, and their incidents (as accuser).
-// Body: { memberId } — the minister's member ID (the one doing the deleting)
+// ANONYMIZES a member (minister only) — preserves all history as a ledger.
+// Instead of deleting the member + their incidents/votes (which would lose history),
+// this:
+//   1. Changes their name to "Removed User"
+//   2. Clears their email (so they can't rejoin with the same email)
+//   3. Keeps all their incidents, votes, and fines in the ledger
+//   4. They can no longer log in (their localStorage identity still points to the
+//      old member ID, but the email no longer matches — they'll see "join" screen)
+//
+// Body: { memberId } — the minister's member ID (the one doing the removing)
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ code: string; memberId: string }> }
@@ -35,22 +42,34 @@ export async function DELETE(
     });
     if (!target) return NextResponse.json({ error: "Member not found." }, { status: 404 });
 
-    // Don't allow the minister to delete themselves
+    // Don't allow the minister to remove themselves
     if (memberId === requesterId) {
       return NextResponse.json({ error: "You cannot remove yourself. Use 'Leave' instead." }, { status: 400 });
     }
 
-    // Don't allow deleting the room host
+    // Don't allow removing the room host
     if (target.email === room.hostEmail) {
       return NextResponse.json({ error: "Cannot remove the room host." }, { status: 400 });
     }
 
-    // Delete the member — cascades to incidents (as accused), votes, incidents (as accuser)
-    await db.roomMember.delete({
+    // ANONYMIZE: keep the member record but remove their identity.
+    // All their incidents (as accused and accuser) and votes remain in the ledger.
+    // Their name shows as "Removed User" in the history.
+    const anonymizedEmail = `removed+${memberId}@deleted.local`; // unique, can't rejoin
+    await db.roomMember.update({
       where: { id: memberId },
+      data: {
+        name: "Removed User",
+        email: anonymizedEmail,
+        role: null, // strip minister role if they had one
+      },
     });
 
-    return NextResponse.json({ ok: true, removedName: target.name });
+    return NextResponse.json({
+      ok: true,
+      removedName: target.name,
+      anonymized: true,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Server error" }, { status: 500 });
   }

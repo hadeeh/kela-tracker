@@ -52,6 +52,7 @@ model KelaIncident {
   votesYes   Int      @default(0)  // kela votes
   votesNo    Int      @default(0)  // saeb votes
   verdict    String   @default("pending") // "kela" | "saeb" | "tie" | "pending"
+  rateAtTime Int      @default(50) // the accused's rate per kela WHEN this incident was created (historical)
   paidAmount Int      @default(0) // how much has been paid (in PKR)
   settledAt  DateTime?
   createdAt  DateTime @default(now())

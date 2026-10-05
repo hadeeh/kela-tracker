@@ -45,6 +45,7 @@ type Incident = {
   votesYes: number;
   votesNo: number;
   verdict: string;
+  rateAtTime: number;
   paidAmount: number;
   settledAt: string | null;
   createdAt: string;
@@ -418,9 +419,9 @@ export function RoomView({ room, me }: Props) {
     }
   }
 
-  // Minister: remove a member from the room
+  // Minister: remove a member from the room (anonymizes — keeps history as ledger)
   async function handleRemoveMember(memberId: string, memberName: string) {
-    if (!confirm(`Remove ${memberName} from the room? This deletes all their kelas, votes, and fines.`)) return;
+    if (!confirm(`Remove ${memberName} from the room?\n\nTheir kelas, votes, and fines will be PRESERVED in the history as "Removed User" (ledger). They will no longer be able to log in.`)) return;
     try {
       const res = await fetch(`/api/rooms/${room.code}/members/${memberId}`, {
         method: "DELETE",
@@ -432,7 +433,7 @@ export function RoomView({ room, me }: Props) {
         toast.error(data?.error || "Failed to remove member.");
         return;
       }
-      toast.success(`${memberName} removed from the room.`);
+      toast.success(`${memberName} removed. History preserved as "Removed User".`);
       refreshData();
     } catch (e: any) {
       toast.error(e?.message || "Failed to remove member.");
@@ -445,13 +446,13 @@ export function RoomView({ room, me }: Props) {
   }
 
   // ---- Compute my fine + minister status ---------------------------------
-  // Fine = (guilty * rate) - totalPaidAmount
+  // Fine = sum(inc.rateAtTime) - totalPaidAmount (uses historical rates)
   const myGuiltyIncidents = incidents.filter((i) => i.user.id === me.memberId && i.verdict === "kela");
   const myGuiltyCount = myGuiltyIncidents.length;
   const myTotalPaid = myGuiltyIncidents.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
-  const myGrossFine = myGuiltyCount * myRate;
+  const myGrossFine = myGuiltyIncidents.reduce((sum, i) => sum + (i.rateAtTime || i.user.ratePerKela), 0);
   const myFine = Math.max(0, myGrossFine - myTotalPaid);
-  const mySettledCount = myGuiltyIncidents.filter((i) => (i.paidAmount || 0) >= myRate).length;
+  const mySettledCount = myGuiltyIncidents.filter((i) => (i.paidAmount || 0) >= (i.rateAtTime || i.user.ratePerKela)).length;
   const myMember = members.find((m) => m.id === me.memberId);
   const isMinister = myMember?.role === "minister";
   const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${room.code}`;
@@ -601,7 +602,7 @@ export function RoomView({ room, me }: Props) {
                     const guilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela").length;
                     const memberIncidents = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela");
                     const totalPaid = memberIncidents.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
-                    const grossFine = guilty * m.ratePerKela;
+                    const grossFine = memberIncidents.reduce((sum, i) => sum + (i.rateAtTime || i.user.ratePerKela), 0);
                     const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
                     return {
                       ...m,
@@ -724,7 +725,7 @@ export function RoomView({ room, me }: Props) {
                   const memberIncidents = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela");
                   const guilty = memberIncidents.length;
                   const totalPaid = memberIncidents.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
-                  const grossFine = guilty * m.ratePerKela;
+                  const grossFine = memberIncidents.reduce((sum, i) => sum + (i.rateAtTime || i.user.ratePerKela), 0);
                   const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
                   const totalFine = Math.max(0, grossFine - totalPaid);
                   return (
@@ -806,14 +807,16 @@ export function RoomView({ room, me }: Props) {
                           </div>
                         ) : null;
                       })()}
-                      <Button
-                        size="sm"
-                        className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-950"
-                        onClick={() => { setAccuseTarget(m); setAccuseReason(""); }}
-                      >
-                        🍌 Kelaaaa
-                      </Button>
-                      {isMinister && (
+                      {m.name !== "Removed User" && (
+                        <Button
+                          size="sm"
+                          className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-950"
+                          onClick={() => { setAccuseTarget(m); setAccuseReason(""); }}
+                        >
+                          🍌 Kelaaaa
+                        </Button>
+                      )}
+                      {isMinister && m.name !== "Removed User" && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -822,6 +825,11 @@ export function RoomView({ room, me }: Props) {
                         >
                           🗑 Remove Member
                         </Button>
+                      )}
+                      {m.name === "Removed User" && (
+                        <div className="text-xs text-center text-muted-foreground italic py-1">
+                          🔒 Removed — history preserved
+                        </div>
                       )}
                     </div>
                   );
@@ -876,11 +884,11 @@ export function RoomView({ room, me }: Props) {
                         {inc.verdict === "kela" && (
                           <>
                             <span>·</span>
-                            <span>Fine: PKR {inc.user.ratePerKela}</span>
+                            <span>Fine: PKR {inc.rateAtTime || inc.user.ratePerKela}</span>
                             {(inc.paidAmount || 0) > 0 && (
                               <span className="text-green-600 font-semibold">· Paid: PKR {inc.paidAmount}</span>
                             )}
-                            {(inc.paidAmount || 0) >= inc.user.ratePerKela && (
+                            {(inc.paidAmount || 0) >= (inc.rateAtTime || inc.user.ratePerKela) && (
                               <span className="text-green-600 font-semibold">· ✓ Settled</span>
                             )}
                           </>
@@ -890,7 +898,7 @@ export function RoomView({ room, me }: Props) {
                       {isMinister && inc.verdict === "kela" && (
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                           {(() => {
-                            const rate = inc.user.ratePerKela;
+                            const rate = inc.rateAtTime || inc.user.ratePerKela;
                             const paid = inc.paidAmount || 0;
                             const remaining = Math.max(0, rate - paid);
                             const fullySettled = paid >= rate;

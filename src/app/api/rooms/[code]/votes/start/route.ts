@@ -51,13 +51,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const accuser = await db.roomMember.findFirst({ where: { id: accusedById, roomId: room.id } });
     if (!accuser) return NextResponse.json({ error: "Accuser member not found." }, { status: 404 });
 
-    // Create the incident
+    // Create the incident — capture the accused's current rate as rateAtTime (historical)
     const incident = await db.kelaIncident.create({
       data: {
         roomId: room.id,
         userId: accusedId,
         accusedById,
         reason: reason?.toString().slice(0, 200) || null,
+        rateAtTime: accused.ratePerKela, // preserve the rate at time of incident
       },
     });
 
