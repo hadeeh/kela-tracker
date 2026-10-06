@@ -39,23 +39,6 @@ export function KelaStats({ memberId, members, incidents }: Props) {
 
   return (
     <>
-      {/* Kela Persona */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">🎭 Your Kela Persona</CardTitle>
-          <CardDescription>Based on your kela eating habits</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="text-5xl">{persona.emoji}</div>
-            <div>
-              <div className="text-xl font-bold">{persona.title}</div>
-              <div className="text-sm text-muted-foreground">{persona.description}</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Most Wanted */}
       {mostWanted && mostWanted.score > 0 && (
         <Card className="border-red-200 bg-gradient-to-br from-red-50 to-orange-50">

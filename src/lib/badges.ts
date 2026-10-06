@@ -85,7 +85,6 @@ export function getBadge(kelaCount: number): BadgeTier | null {
 }
 
 export function getNextBadge(kelaCount: number): BadgeTier | null {
-  // Return the next badge to earn (the one with the lowest minKelas that's still above current count)
   let next: BadgeTier | null = null;
   for (const tier of BADGE_TIERS) {
     if (tier.minKelas > kelaCount) {
@@ -95,4 +94,31 @@ export function getNextBadge(kelaCount: number): BadgeTier | null {
     }
   }
   return next;
+}
+
+// ---- Accuser Achievements ----
+// Badges for the accuser (person who starts votes), based on total accusations made.
+export type AccuserBadge = {
+  minAccusations: number;
+  title: string;
+  emoji: string;
+  color: string;
+  description: string;
+};
+
+export const ACCUSER_BADGES: AccuserBadge[] = [
+  { minAccusations: 100, title: "Kela Godfather", emoji: "👑", color: "bg-purple-100 text-purple-800 border-purple-300", description: "100+ accusations — the ultimate kela instigator" },
+  { minAccusations: 50,  title: "Kela Sniper",   emoji: "🎯", color: "bg-cyan-100 text-cyan-800 border-cyan-300",    description: "50+ accusations — pinpoint accuracy" },
+  { minAccusations: 30,  title: "Kela Prosecutor",emoji: "⚖️", color: "bg-amber-100 text-amber-800 border-amber-300", description: "30+ accusations — always building a case" },
+  { minAccusations: 20,  title: "Kela Instigator",emoji: "🔥", color: "bg-red-100 text-red-800 border-red-300",       description: "20+ accusations — loves stirring the pot" },
+  { minAccusations: 10,  title: "Kela Hunter",    emoji: "🏹", color: "bg-orange-100 text-orange-800 border-orange-300", description: "10+ accusations — always on the hunt" },
+  { minAccusations: 5,   title: "Kela Watcher",   emoji: "👁️", color: "bg-green-100 text-green-800 border-green-300", description: "5+ accusations — keeping an eye out" },
+  { minAccusations: 1,   title: "Kela Rookie Accuser", emoji: "🔪", color: "bg-yellow-50 text-yellow-700 border-yellow-200", description: "First accusation — welcome to the hunt" },
+];
+
+export function getAccuserBadge(accusationCount: number): AccuserBadge | null {
+  for (const badge of ACCUSER_BADGES) {
+    if (accusationCount >= badge.minAccusations) return badge;
+  }
+  return null;
 }

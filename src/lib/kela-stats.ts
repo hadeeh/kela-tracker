@@ -214,15 +214,19 @@ export function getCalendarData(incidents: IncidentForStats[], year: number, mon
 
 // ---- Walk of Shame ----
 // Returns true if member ate 3+ kelas today
+// Helper: convert a date to UTC "day" key (YYYY-MM-DD) for consistent comparisons
+function getUTCDayKey(date: Date | string): string {
+  const d = new Date(date);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
 export function isInWalkOfShame(memberId: string, incidents: IncidentForStats[]): boolean {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Use UTC for consistent "today" comparison regardless of user's timezone
+  const todayKey = getUTCDayKey(new Date());
 
   const todayGuilty = incidents.filter((i) => {
-    const d = new Date(i.createdAt);
-    return i.userId === memberId && i.verdict === "kela" && d >= today && d < tomorrow;
+    const incidentKey = getUTCDayKey(i.createdAt);
+    return i.userId === memberId && i.verdict === "kela" && incidentKey === todayKey;
   });
 
   return todayGuilty.length >= 3;

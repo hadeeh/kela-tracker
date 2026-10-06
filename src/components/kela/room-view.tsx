@@ -36,8 +36,8 @@ import { SoundManager } from "./sound-manager";
 import { MemberManager } from "./member-manager";
 import { KelaStats } from "./kela-stats";
 import { HallOfShame } from "./hall-of-shame";
-import { getBadge, getNextBadge, BADGE_TIERS } from "@/lib/badges";
-import { isInWalkOfShame } from "@/lib/kela-stats";
+import { getBadge, getNextBadge, BADGE_TIERS, getAccuserBadge, ACCUSER_BADGES } from "@/lib/badges";
+import { isInWalkOfShame, generatePersona } from "@/lib/kela-stats";
 import { getKelaStreak, getAnniversaries, getAllHeadToHead, getSeasonalTheme, sendNotification, requestNotificationPermission } from "@/lib/kela-extras";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
@@ -541,6 +541,8 @@ export function RoomView({ room, me }: Props) {
   // ---- Seasonal theme + streaks + anniversaries + head-to-head ----
   const seasonalTheme = useMemo(() => getSeasonalTheme(), []);
   const myStreak = useMemo(() => getKelaStreak(me.memberId, incidents as any), [me.memberId, incidents]);
+  const myAccusations = useMemo(() => incidents.filter((i) => i.accusedById === me.memberId).length, [incidents, me.memberId]);
+  const myAccuserBadge = useMemo(() => getAccuserBadge(myAccusations), [myAccusations]);
   const anniversaries = useMemo(() => getAnniversaries(incidents as any, members.map((m) => ({ id: m.id, name: m.name }))), [incidents, members]);
   const headToHead = useMemo(() => getAllHeadToHead(members.map((m) => ({ id: m.id, name: m.name })), incidents as any), [members, incidents]);
 
@@ -617,24 +619,23 @@ export function RoomView({ room, me }: Props) {
                       <span className="text-orange-600 font-semibold"> · 🔥 {myStreak}-day streak!</span>
                     )}
                   </div>
-                  {/* My badge */}
+                  {/* My badges: eater badge + accuser badge */}
                   {(() => {
                     const badge = getBadge(myGuiltyCount);
-                    const next = getNextBadge(myGuiltyCount);
                     return (
-                      <div className="mt-3 flex items-center gap-2 flex-wrap">
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
                         {badge ? (
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${badge.color} bg-white`}>
-                            {badge.emoji} {badge.title}
+                            🍌 {badge.emoji} {badge.title}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">
-                            No badge yet
+                            No eater badge yet
                           </span>
                         )}
-                        {next && (
-                          <span className="text-xs text-yellow-900/70">
-                            → Next: {next.emoji} {next.title} at {next.minKelas} kelas
+                        {myAccuserBadge && (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${myAccuserBadge.color} bg-white`}>
+                            {myAccuserBadge.emoji} {myAccuserBadge.title}
                           </span>
                         )}
                       </div>
@@ -671,25 +672,16 @@ export function RoomView({ room, me }: Props) {
           </Card>
         </div>
 
-        {/* Share link banner — only minister sees this */}
-        {isMinister && (
-        <Card className="bg-yellow-50 border-yellow-200">
-          <CardContent className="p-3 sm:p-4 flex flex-wrap items-center gap-2 sm:gap-3">
-            <Users className="h-5 w-5 text-yellow-700 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-xs sm:text-sm font-semibold text-yellow-900">Invite friends to this room</div>
-              <div className="text-[10px] sm:text-xs text-yellow-800/80 truncate">{shareUrl}</div>
+        {/* Persona text at top (compact, not a card) */}
+        {(() => {
+          const persona = generatePersona(me.memberId, incidents as any, 0);
+          return (
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground px-1">
+              <span className="text-lg">{persona.emoji}</span>
+              <span><b className="text-foreground">{persona.title}</b> — {persona.description}</span>
             </div>
-            <Button size="sm" variant="outline" onClick={copyInviteLink} className="bg-white h-8">
-              {copied ? <Check className="h-3.5 w-3.5 sm:mr-1 text-green-600" /> : <Copy className="h-3.5 w-3.5 sm:mr-1" />}
-              <span className="hidden sm:inline">{copied ? "Copied!" : "Copy Link"}</span>
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setInviteOpen(true)} className="bg-white h-8">
-              <Mail className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Invite by Email</span><span className="sm:hidden">Email</span>
-            </Button>
-          </CardContent>
-        </Card>
-        )}
+          );
+        })()}
 
         {/* Pending Requests — only visible to the Kela Minister */}
         {isMinister && members.filter((m) => m.status === "pending").length > 0 && (
@@ -861,6 +853,22 @@ export function RoomView({ room, me }: Props) {
                     <div className="font-bold text-sm">{tier.title}</div>
                     <div className="text-xs opacity-80">{tier.tier} · {tier.minKelas}+ kelas</div>
                     <div className="text-[11px] opacity-70 truncate">{tier.description}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Accuser badges */}
+            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground pt-4 pb-2">🏹 Accuser Achievements</div>
+            <p className="text-xs text-muted-foreground -mt-1 mb-2">Earned by accusing others — the more you accuse, the higher your rank!</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {ACCUSER_BADGES.map((badge) => (
+                <div key={badge.minAccusations} className={`flex items-center gap-3 rounded-lg border p-3 ${badge.color}`}>
+                  <div className="text-3xl flex-shrink-0">{badge.emoji}</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm">{badge.title}</div>
+                    <div className="text-xs opacity-80">{badge.minAccusations}+ accusations</div>
+                    <div className="text-[11px] opacity-70 truncate">{badge.description}</div>
                   </div>
                 </div>
               ))}
@@ -1392,6 +1400,24 @@ export function RoomView({ room, me }: Props) {
         endedVote={endedVote}
         onClose={() => { setResultOpen(false); dismissEndedVote(); }}
       />
+
+      {/* Floating Action Button — quick accuse (visible on all views) */}
+      <button
+        onClick={() => {
+          const approvedMembers = members.filter((m) => m.id !== me.memberId && m.status === "approved" && m.name !== "Removed User");
+          if (approvedMembers.length === 0) {
+            toast.error("No friends to accuse yet! Invite someone first.");
+            return;
+          }
+          // Pick the first member and open the accuse dialog
+          setAccuseTarget(approvedMembers[0]);
+          setAccuseReason("");
+        }}
+        className="fixed bottom-4 right-4 z-50 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 font-bold rounded-full h-14 w-14 sm:h-16 sm:w-16 shadow-lg flex items-center justify-center text-2xl sm:text-3xl transition-transform hover:scale-110 active:scale-95"
+        title="Quick Accuse"
+      >
+        🍌
+      </button>
     </div>
   );
 }

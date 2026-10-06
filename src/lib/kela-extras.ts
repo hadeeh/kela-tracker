@@ -12,46 +12,44 @@ export type IncidentForStats = {
 
 // ---- Kela Streaks ----
 // Tracks consecutive days eating kela (at least 1 guilty verdict per day)
-export function getKelaStreak(memberId: string, incidents: IncidentForStats[]): number {
-  const guiltyDates = incidents
-    .filter((i) => i.userId === memberId && i.verdict === "kela")
-    .map((i) => {
-      const d = new Date(i.createdAt);
-      d.setHours(0, 0, 0, 0);
-      return d.getTime();
-    })
-    .sort((a, b) => b - a); // most recent first
+// Uses UTC for consistent day comparisons
+function getUTCDayKey(date: Date | string): string {
+  const d = new Date(date);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
 
-  if (guiltyDates.length === 0) return 0;
+export function getKelaStreak(memberId: string, incidents: IncidentForStats[]): number {
+  const guiltyDateKeys = incidents
+    .filter((i) => i.userId === memberId && i.verdict === "kela")
+    .map((i) => getUTCDayKey(i.createdAt))
+    .sort((a, b) => b.localeCompare(a)); // most recent first (string sort works for YYYY-MM-DD)
+
+  if (guiltyDateKeys.length === 0) return 0;
 
   // Remove duplicates (same day)
-  const uniqueDates: number[] = [];
-  for (const d of guiltyDates) {
+  const uniqueDates: string[] = [];
+  for (const d of guiltyDateKeys) {
     if (uniqueDates.length === 0 || uniqueDates[uniqueDates.length - 1] !== d) {
       uniqueDates.push(d);
     }
   }
 
-  // Check if today has a kela
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayTime = today.getTime();
+  // Check if today or yesterday has a kela (UTC)
+  const todayKey = getUTCDayKey(new Date());
+  const yesterdayDate = new Date();
+  yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
+  const yesterdayKey = getUTCDayKey(yesterdayDate);
 
-  if (uniqueDates[0] !== todayTime) {
-    // Check if yesterday has one (streak might still be alive if yesterday was the last)
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (uniqueDates[0] !== yesterday.getTime()) {
-      return 0; // streak broken
-    }
+  if (uniqueDates[0] !== todayKey && uniqueDates[0] !== yesterdayKey) {
+    return 0; // streak broken
   }
 
   // Count consecutive days
   let streak = 1;
   for (let i = 1; i < uniqueDates.length; i++) {
-    const prev = uniqueDates[i - 1];
-    const curr = uniqueDates[i];
-    const diff = (prev - curr) / (24 * 60 * 60 * 1000);
+    const prev = new Date(uniqueDates[i - 1] + "T00:00:00Z");
+    const curr = new Date(uniqueDates[i] + "T00:00:00Z");
+    const diff = (prev.getTime() - curr.getTime()) / (24 * 60 * 60 * 1000);
     if (diff === 1) {
       streak++;
     } else {
