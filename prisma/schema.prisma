@@ -83,19 +83,21 @@ model Vote {
 }
 
 model Mugshot {
-  id         String   @id @default(cuid())
-  roomId     String
-  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  uploaderId String
-  incidentId String?
-  data       Bytes
-  mimeType   String
-  caption    String?
-  createdAt  DateTime @default(now())
+  id              String   @id @default(cuid())
+  roomId          String
+  room            Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  uploaderId      String  // who uploaded the photo
+  targetMemberId  String? // who the photo is OF (the kela eater)
+  incidentId      String?
+  data            Bytes
+  mimeType        String
+  caption         String?
+  createdAt       DateTime @default(now())
 
-  incidents  KelaIncident[]
+  incidents       KelaIncident[]
 
   @@index([roomId])
+  @@index([targetMemberId])
 }
 
 model CustomSound {

@@ -876,7 +876,11 @@ export function RoomView({ room, me }: Props) {
         />
 
         {/* Hall of Shame: Mugshots */}
-        <HallOfShame roomCode={room.code} memberId={me.memberId} />
+        <HallOfShame
+          roomCode={room.code}
+          memberId={me.memberId}
+          members={members.filter((m) => m.status === "approved").map((m) => ({ id: m.id, name: m.name }))}
+        />
 
         {/* PDF Export — minister only */}
         {isMinister && incidents.length > 0 && (

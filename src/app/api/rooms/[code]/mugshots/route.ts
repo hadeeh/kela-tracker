@@ -4,30 +4,45 @@ import { db } from "@/lib/db";
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
 // GET /api/rooms/[code]/mugshots — list all mugshots (Hall of Shame)
-export async function GET(_req: Request, { params }: { params: Promise<{ code: string }> }) {
+// Optional query: ?memberId=xxx — filter by target member (for per-user gallery)
+export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
+    const url = new URL(req.url);
+    const targetMemberId = url.searchParams.get("memberId");
+
     const room = await db.room.findUnique({ where: { code: code.toUpperCase() } });
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
+    const where: any = { roomId: room.id };
+    if (targetMemberId) {
+      where.targetMemberId = targetMemberId;
+    }
+
+    // Get mugshots + look up target member names
     const mugshots = await db.mugshot.findMany({
-      where: { roomId: room.id },
+      where,
       orderBy: { createdAt: "desc" },
-      take: 50,
-      include: {
-        incidents: { select: { id: true, user: { select: { id: true, name: true } } } },
-      },
+      take: 100,
     });
+
+    // Get all target member names in one query
+    const memberIds = [...new Set(mugshots.map((m) => m.targetMemberId).filter(Boolean))] as string[];
+    const members = await db.roomMember.findMany({
+      where: { id: { in: memberIds } },
+      select: { id: true, name: true },
+    });
+    const memberMap = new Map(members.map((m) => [m.id, m.name]));
 
     return NextResponse.json({
       mugshots: mugshots.map((m) => ({
         id: m.id,
         uploaderId: m.uploaderId,
-        incidentId: m.incidentId,
+        targetMemberId: m.targetMemberId,
+        targetMemberName: m.targetMemberId ? (memberMap.get(m.targetMemberId) || "Removed User") : "Unknown",
         caption: m.caption,
         createdAt: m.createdAt,
         url: `/api/rooms/${room.code}/mugshots/${m.id}`,
-        accusedName: m.incidents[0]?.user?.name || "Unknown",
       })),
     });
   } catch (e: any) {
@@ -35,7 +50,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
   }
 }
 
-// POST /api/rooms/[code]/mugshots — upload a mugshot (minister or guilty person)
+// POST /api/rooms/[code]/mugshots — upload a mugshot
+// FormData: uploaderId, targetMemberId (who the photo is of), caption, file
 export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
@@ -44,6 +60,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
 
     const formData = await req.formData();
     const uploaderId = formData.get("uploaderId") as string;
+    const targetMemberId = formData.get("targetMemberId") as string | null;
     const caption = formData.get("caption") as string | null;
     const file = formData.get("file") as File | null;
 
@@ -57,6 +74,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const member = await db.roomMember.findFirst({ where: { id: uploaderId, roomId: room.id } });
     if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 });
 
+    // Verify target member exists (if provided)
+    if (targetMemberId) {
+      const target = await db.roomMember.findFirst({ where: { id: targetMemberId, roomId: room.id } });
+      if (!target) return NextResponse.json({ error: "Target member not found" }, { status: 404 });
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
     const mimeType = file.type || "image/jpeg";
 
@@ -64,6 +87,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       data: {
         roomId: room.id,
         uploaderId,
+        targetMemberId: targetMemberId || null,
         caption: caption?.slice(0, 200) || null,
         data: buffer,
         mimeType,
