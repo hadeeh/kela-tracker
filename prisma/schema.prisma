@@ -1,5 +1,4 @@
-// Kela Tracker schema — no auth. One person creates a Room, gets an invite code,
-// friends join with name + email (no password). All data scoped to a room.
+// Kela Tracker schema
 
 generator client {
   provider = "prisma-client-js"
@@ -12,7 +11,7 @@ datasource db {
 
 model Room {
   id        String   @id @default(cuid())
-  code      String   @unique // short shareable code, e.g. "KELA-7H3K2"
+  code      String   @unique
   name      String
   hostEmail String
   createdAt DateTime @default(now())
@@ -20,18 +19,19 @@ model Room {
   members   RoomMember[]
   incidents KelaIncident[]
   sounds    CustomSound[]
+  mugshots  Mugshot[]
 }
 
 model RoomMember {
-  id        String   @id @default(cuid())
-  roomId    String
-  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  email     String
-  name      String
-  ratePerKela Int    @default(50)
-  role      String?  // "minister" = Kela Minister (can manage sounds), null = regular member
-  status    String   @default("approved") // "approved" | "pending" | "rejected"
-  joinedAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  email       String
+  name        String
+  ratePerKela Int      @default(50)
+  role        String?
+  status      String   @default("approved")
+  joinedAt    DateTime @default(now())
 
   incidents  KelaIncident[] @relation("AccusedMember")
   votes      Vote[]
@@ -42,25 +42,25 @@ model RoomMember {
 }
 
 model KelaIncident {
-  id         String   @id @default(cuid())
-  roomId     String
-  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  userId     String   // the accused member
-  user       RoomMember @relation("AccusedMember", fields: [userId], references: [id], onDelete: Cascade)
-  accusedById String   // member id who initiated the vote
-  accusedBy  RoomMember @relation("Accuser", fields: [accusedById], references: [id], onDelete: Cascade)
-  reason     String?
-  votesYes   Int      @default(0)  // kela votes
-  votesNo    Int      @default(0)  // saeb votes
-  verdict    String   @default("pending") // "kela" | "saeb" | "tie" | "pending"
-  rateAtTime Int      @default(50) // the accused's rate per kela WHEN this incident was created (historical)
-  paidAmount Int      @default(0) // how much has been paid (in PKR)
-  settledAt  DateTime?
-  mugshotId  String?  // link to Mugshot record (if uploaded)
-  mugshot    Mugshot? @relation(fields: [mugshotId], references: [id], onDelete: Set Null)
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId      String
+  user        RoomMember @relation("AccusedMember", fields: [userId], references: [id], onDelete: Cascade)
+  accusedById String
+  accusedBy   RoomMember @relation("Accuser", fields: [accusedById], references: [id], onDelete: Cascade)
+  reason      String?
+  votesYes    Int      @default(0)
+  votesNo     Int      @default(0)
+  verdict     String   @default("pending")
+  rateAtTime  Int      @default(50)
+  paidAmount  Int      @default(0)
+  settledAt   DateTime?
+  photoId     String?
+  photo       Mugshot? @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
 
-  votes      Vote[]
+  votes       Vote[]
 
   @@index([roomId])
   @@index([createdAt])
@@ -72,39 +72,35 @@ model Vote {
   incident    KelaIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   voterId     String
   voter       RoomMember @relation(fields: [voterId], references: [id], onDelete: Cascade)
-  choice      String   // "kela" | "saeb"
+  choice      String
   createdAt   DateTime @default(now())
 
   @@unique([incidentId, voterId])
   @@index([incidentId])
 }
 
-// Mugshots uploaded when someone is found guilty — stored in the Hall of Shame.
 model Mugshot {
-  id        String   @id @default(cuid())
-  roomId    String
-  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  uploaderId String  // member who uploaded (usually the guilty person or minister)
-  incidentId String? // optional: linked to a specific incident
-  data      Bytes    // the image file bytes
-  mimeType  String
-  caption   String?  // funny caption
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  roomId     String
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  uploaderId String
+  incidentId String?
+  data       Bytes
+  mimeType   String
+  caption    String?
+  createdAt  DateTime @default(now())
 
-  incidents KelaIncident[]
+  incidents  KelaIncident[]
 
   @@index([roomId])
 }
 
-// Custom sounds uploaded by the Kela Minister — stored in the database so they
-// work on serverless platforms (Vercel, Render, etc.) where the filesystem is
-// read-only.
 model CustomSound {
   id        String   @id @default(cuid())
   roomId    String
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  soundType String   // "vote-start" | "kela-vote" | "saeb-vote"
-  data      Bytes    // the audio file bytes
+  soundType String
+  data      Bytes
   mimeType  String
   fileName  String
   createdAt DateTime @default(now())
@@ -113,4 +109,3 @@ model CustomSound {
   @@unique([roomId, soundType])
   @@index([roomId])
 }
-
