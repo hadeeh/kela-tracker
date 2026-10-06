@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -27,10 +27,11 @@ import {
 import { Loader2, LogOut, Copy, Mail, Check, Users, Crown } from "lucide-react";
 import { toast } from "sonner";
 import {
-  usePolling, type ActiveVote, type EndedVote,
+  usePolling, type ActiveVote, type EndedVote, type DefensePhase,
 } from "./use-polling";
 import { useSounds, useRoomSounds } from "./use-sounds";
 import { VoteModal } from "./vote-modal";
+import { DefenseModal } from "./defense-modal";
 import { AccusedModal, ResultModal } from "./modals";
 import { SoundManager } from "./sound-manager";
 import { MemberManager } from "./member-manager";
@@ -38,6 +39,7 @@ import { KelaStats } from "./kela-stats";
 import { HallOfShame } from "./hall-of-shame";
 import { getBadge, getNextBadge, BADGE_TIERS } from "@/lib/badges";
 import { isInWalkOfShame } from "@/lib/kela-stats";
+import { getKelaStreak, getAnniversaries, getAllHeadToHead, getSeasonalTheme, sendNotification, requestNotificationPermission } from "@/lib/kela-extras";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; status: string; joinedAt: string };
@@ -45,6 +47,7 @@ type Incident = {
   id: string;
   userId: string;
   reason: string | null;
+  defense: string | null;
   accusedById: string;
   votesYes: number;
   votesNo: number;
@@ -104,10 +107,14 @@ export function RoomView({ room, me }: Props) {
   const [voteOpen, setVoteOpen] = useState(false);
   const [votedChoice, setVotedChoice] = useState<"kela" | "saeb" | null>(null);
 
-  // ---- Accused modal (I'm the accused) ---------------------------------
+  // ---- Defense modal (I'm the accused — must defend before vote starts) ----
+  const [defenseOpen, setDefenseOpen] = useState(false);
+  const [submittingDefense, setSubmittingDefense] = useState(false);
+
+  // ---- Accused modal (vote is active, I'm the accused) ----
   const [accusedOpen, setAccusedOpen] = useState(false);
 
-  // ---- Result modal -----------------------------------------------------
+  // ---- Result modal ----
   const [resultOpen, setResultOpen] = useState(false);
 
   // ---- Polling handlers (with sounds) ---------------------------------
@@ -172,13 +179,30 @@ export function RoomView({ room, me }: Props) {
   }, [play, incidents]);
 
   const {
-    activeVote, endedVote, startVote, castVote, dismissEndedVote,
+    activeVote, endedVote, defensePhase, startVote, castVote, submitDefense, dismissEndedVote,
   } = usePolling(room.code, me.memberId, {
     onVoteStarted,
     onAccused,
     onVoteUpdate,
     onVoteEnded,
+    onDefensePhase: (_dp: DefensePhase) => {
+      setDefenseOpen(true);
+      play("vote-start");
+      toast.message("⚖️ You've been accused! Submit your defense!");
+    },
+    onDefenseExpired: (accusedName: string) => {
+      toast.info(`⏰ ${accusedName} didn't respond in time. Vote cancelled.`);
+    },
   });
+
+  // Sync defense modal with polling state
+  useEffect(() => {
+    if (defensePhase) {
+      setDefenseOpen(true);
+    } else {
+      setDefenseOpen(false);
+    }
+  }, [defensePhase]);
 
   // Sync modal state with polling state
   useEffect(() => {
@@ -479,6 +503,24 @@ export function RoomView({ room, me }: Props) {
     }
   }
 
+  async function handleSubmitDefense(defense: string) {
+    if (!defensePhase) return;
+    setSubmittingDefense(true);
+    const result = await submitDefense(defensePhase.incidentId, defense);
+    setSubmittingDefense(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("🛡️ Defense submitted! Vote starting...");
+    setDefenseOpen(false);
+  }
+
+  // Request notification permission on mount
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
+
   function handleLeave() {
     localStorage.removeItem(`kela:${room.code}`);
     router.push("/");
@@ -511,16 +553,39 @@ export function RoomView({ room, me }: Props) {
     }
   }, [walkOfShame, play]);
 
+  // ---- Seasonal theme + streaks + anniversaries + head-to-head ----
+  const seasonalTheme = useMemo(() => getSeasonalTheme(), []);
+  const myStreak = useMemo(() => getKelaStreak(me.memberId, incidents as any), [me.memberId, incidents]);
+  const anniversaries = useMemo(() => getAnniversaries(incidents as any, members.map((m) => ({ id: m.id, name: m.name }))), [incidents, members]);
+  const headToHead = useMemo(() => getAllHeadToHead(members.map((m) => ({ id: m.id, name: m.name })), incidents as any), [members, incidents]);
+
+  // Send push notification when badge is earned
+  const prevBadgeRef = useRef<string | null>(null);
+  useEffect(() => {
+    const currentBadge = getBadge(myGuiltyCount);
+    const currentBadgeName = currentBadge?.title || null;
+    if (prevBadgeRef.current !== null && currentBadgeName && currentBadgeName !== prevBadgeRef.current) {
+      sendNotification("🎉 New Badge Earned!", `You just became: ${currentBadge.emoji} ${currentBadge.title}!`);
+    }
+    prevBadgeRef.current = currentBadgeName;
+  }, [myGuiltyCount]);
+
   // ---- Render -----------------------------------------------------------
   return (
     <div className={walkOfShame
       ? "min-h-screen bg-gradient-to-br from-red-100 via-red-50 to-orange-100"
-      : "min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50"
+      : `min-h-screen bg-gradient-to-br ${seasonalTheme.bgClass}`
     }>
       {/* Walk of Shame banner */}
       {walkOfShame && (
         <div className="bg-red-600 text-white text-center py-2 text-sm font-bold animate-pulse sticky top-0 z-50">
           💀 WALK OF SHAME — You&apos;ve eaten 3+ kelas today! 💀
+        </div>
+      )}
+      {/* Seasonal theme banner */}
+      {seasonalTheme.bannerText && !walkOfShame && (
+        <div className="bg-yellow-100 border-b border-yellow-200 text-center py-1.5 text-xs sm:text-sm text-yellow-800">
+          {seasonalTheme.bannerText}
         </div>
       )}
       <div className="container mx-auto max-w-5xl p-3 sm:p-4 space-y-3 sm:space-y-4">
@@ -562,6 +627,9 @@ export function RoomView({ room, me }: Props) {
                     )}
                     {mySettledCount > 0 && (
                       <span className="text-green-700"> · {mySettledCount} settled ✓</span>
+                    )}
+                    {myStreak >= 2 && (
+                      <span className="text-orange-600 font-semibold"> · 🔥 {myStreak}-day streak!</span>
                     )}
                   </div>
                   {/* My badge */}
@@ -1017,7 +1085,14 @@ export function RoomView({ room, me }: Props) {
                         <VerdictBadge verdict={inc.verdict} />
                       </div>
                       {inc.reason && (
-                        <div className="text-sm text-muted-foreground italic mt-1">&ldquo;{inc.reason}&rdquo;</div>
+                        <div className="text-sm text-muted-foreground italic mt-1">
+                          🍌 &ldquo;{inc.reason}&rdquo;
+                        </div>
+                      )}
+                      {inc.defense && (
+                        <div className="text-sm text-blue-600 italic mt-1">
+                          🛡️ &ldquo;{inc.defense}&rdquo;
+                        </div>
                       )}
                       <Separator className="my-2" />
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -1140,6 +1215,45 @@ export function RoomView({ room, me }: Props) {
             )}
           </CardContent>
         </Card>
+
+        {/* Anniversaries */}
+        {anniversaries.length > 0 && (
+          <Card className="border-purple-200 bg-purple-50">
+            <CardContent className="p-3 sm:p-4">
+              <div className="text-sm font-semibold mb-2">🎉 Kela Anniversaries</div>
+              <div className="space-y-1">
+                {anniversaries.map((a, i) => (
+                  <div key={i} className="text-xs text-purple-800">
+                    🎉 {a.memberName}'s {a.milestone}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Head-to-Head Records */}
+        {headToHead.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">⚔️ Head-to-Head Records</CardTitle>
+              <CardDescription className="text-xs">Who accuses who, and the verdicts</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {headToHead.map((h, i) => (
+                <div key={i} className="text-xs border rounded-lg p-2 bg-card">
+                  <div className="font-semibold text-sm mb-1">{h.a.name} ⚔️ {h.b.name}</div>
+                  <div className="text-muted-foreground">
+                    {h.a.name}: {h.record.aAccusesB.total} accusations, {h.record.aAccusesB.guilty} guilty
+                  </div>
+                  <div className="text-muted-foreground">
+                    {h.b.name}: {h.record.bAccusesA.total} accusations, {h.record.bAccusesA.guilty} guilty
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         <footer className="text-center text-[11px] sm:text-xs text-muted-foreground pb-4 pt-2">
           Made with 🍌 · Real-time voting · Sound on 🔊
@@ -1265,6 +1379,14 @@ export function RoomView({ room, me }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Defense modal (I'm the accused — must defend before vote starts) */}
+      <DefenseModal
+        open={defenseOpen}
+        defensePhase={defensePhase}
+        onSubmit={handleSubmitDefense}
+        submitting={submittingDefense}
+      />
 
       {/* Active vote modal (I'm a voter) */}
       <VoteModal

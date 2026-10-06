@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 const VOTE_DURATION_MS = 30_000;
+const DEFENSE_DEADLINE_MS = 30_000;
 
 // GET /api/rooms/[code]/active-vote?memberId=xxx
-// Returns the current active vote (if any) + the most recently ended vote.
+// Returns the current active incident (awaiting defense OR voting) + recently ended.
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
@@ -14,9 +15,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     const room = await db.room.findUnique({ where: { code: code.toUpperCase() } });
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
-    // 1. Check for a pending (active) incident
-    const pending = await db.kelaIncident.findFirst({
-      where: { roomId: room.id, verdict: "pending" },
+    // 1. Check for an active incident (awaiting defense OR voting)
+    const active = await db.kelaIncident.findFirst({
+      where: {
+        roomId: room.id,
+        status: { in: ["awaiting_defense", "voting"] },
+      },
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { id: true, name: true, email: true, ratePerKela: true } },
@@ -25,78 +29,125 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       },
     });
 
-    if (pending) {
+    if (active) {
       const now = Date.now();
-      const startedAt = pending.createdAt.getTime();
-      const endsAt = startedAt + VOTE_DURATION_MS;
 
-      // Count eligible voters (all members except the accused)
-      const totalMembers = await db.roomMember.count({ where: { roomId: room.id } });
-      const eligibleVoters = Math.max(0, totalMembers - 1);
-      const votedCount = pending.votes.length;
+      // --- AWAITING DEFENSE phase ---
+      if (active.status === "awaiting_defense") {
+        const deadline = active.defenseDeadline ? active.defenseDeadline.getTime() : active.createdAt.getTime() + DEFENSE_DEADLINE_MS;
+        const timeLeft = Math.max(0, deadline - now);
 
-      const timedOut = now >= endsAt;
-      const allVoted = eligibleVoters > 0 && votedCount >= eligibleVoters;
+        // Check if deadline passed
+        if (timeLeft <= 0) {
+          // Cancel the incident
+          await db.kelaIncident.update({
+            where: { id: active.id },
+            data: { status: "cancelled", verdict: "cancelled" },
+          });
 
-      // Finalize if needed
-      if (timedOut || allVoted) {
-        let verdict: "kela" | "saeb" | "tie";
-        if (pending.votesYes > pending.votesNo) verdict = "kela";
-        else if (pending.votesNo > pending.votesYes) verdict = "saeb";
-        else verdict = "tie";
-
-        await db.kelaIncident.update({
-          where: { id: pending.id },
-          data: { verdict },
-        });
+          return NextResponse.json({
+            activeVote: null,
+            endedVote: null,
+            defenseExpired: true,
+            accusedName: active.user.name,
+          });
+        }
 
         return NextResponse.json({
           activeVote: null,
-          endedVote: {
-            incidentId: pending.id,
-            accusedId: pending.userId,
-            accusedName: pending.user.name,
-            accusedById: pending.accusedById,
-            accusedByName: pending.accusedBy.name,
-            reason: pending.reason,
-            votesYes: pending.votesYes,
-            votesNo: pending.votesNo,
-            verdict,
-            isAccusedMe: pending.userId === memberId,
+          endedVote: null,
+          defensePhase: {
+            incidentId: active.id,
+            accusedId: active.userId,
+            accusedName: active.user.name,
+            accusedById: active.accusedById,
+            accusedByName: active.accusedBy.name,
+            reason: active.reason,
+            defenseDeadline: deadline,
+            timeLeft,
+            isAccused: active.userId === memberId,
           },
         });
       }
 
-      // Still active — return current state
-      const myVote = memberId
-        ? pending.votes.find((v) => v.voterId === memberId)?.choice || null
-        : null;
+      // --- VOTING phase ---
+      if (active.status === "voting") {
+        const startedAt = active.createdAt.getTime();
+        const endsAt = startedAt + VOTE_DURATION_MS;
 
-      return NextResponse.json({
-        activeVote: {
-          incidentId: pending.id,
-          accusedId: pending.userId,
-          accusedName: pending.user.name,
-          accusedById: pending.accusedById,
-          accusedByName: pending.accusedBy.name,
-          reason: pending.reason,
-          startedAt,
-          endsAt,
-          votesYes: pending.votesYes,
-          votesNo: pending.votesNo,
-          voterCount: pending.votes.length,
-          myVote,
-          isAccused: pending.userId === memberId,
-        },
-        endedVote: null,
-      });
+        const totalMembers = await db.roomMember.count({
+          where: { roomId: room.id, status: "approved" },
+        });
+        const eligibleVoters = Math.max(0, totalMembers - 1);
+        const votedCount = active.votes.length;
+
+        const timedOut = now >= endsAt;
+        const allVoted = eligibleVoters > 0 && votedCount >= eligibleVoters;
+
+        // Finalize if needed
+        if (timedOut || allVoted) {
+          let verdict: "kela" | "saeb" | "tie";
+          if (active.votesYes > active.votesNo) verdict = "kela";
+          else if (active.votesNo > active.votesYes) verdict = "saeb";
+          else verdict = "tie";
+
+          await db.kelaIncident.update({
+            where: { id: active.id },
+            data: { verdict, status: "completed" },
+          });
+
+          return NextResponse.json({
+            activeVote: null,
+            endedVote: {
+              incidentId: active.id,
+              accusedId: active.userId,
+              accusedName: active.user.name,
+              accusedById: active.accusedById,
+              accusedByName: active.accusedBy.name,
+              reason: active.reason,
+              defense: active.defense,
+              votesYes: active.votesYes,
+              votesNo: active.votesNo,
+              verdict,
+              isAccusedMe: active.userId === memberId,
+            },
+          });
+        }
+
+        // Still voting — return current state
+        const myVote = memberId
+          ? active.votes.find((v) => v.voterId === memberId)?.choice || null
+          : null;
+
+        return NextResponse.json({
+          activeVote: {
+            incidentId: active.id,
+            accusedId: active.userId,
+            accusedName: active.user.name,
+            accusedById: active.accusedById,
+            accusedByName: active.accusedBy.name,
+            reason: active.reason,
+            defense: active.defense,
+            startedAt,
+            endsAt,
+            votesYes: active.votesYes,
+            votesNo: active.votesNo,
+            voterCount: active.votes.length,
+            myVote,
+            isAccused: active.userId === memberId,
+          },
+          endedVote: null,
+          defensePhase: null,
+        });
+      }
     }
 
-    // 2. No pending incident — check for a recently ended one (within last 15 seconds)
+    // 2. No active incident — check for a recently ended one (within last 15 seconds)
     const recentEnded = await db.kelaIncident.findFirst({
       where: {
         roomId: room.id,
-        verdict: { not: "pending" },
+        status: "completed",
+        verdict: { in: ["kela", "saeb", "tie"] },
         createdAt: { gt: new Date(Date.now() - 15_000) },
       },
       orderBy: { createdAt: "desc" },
@@ -116,16 +167,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
           accusedById: recentEnded.accusedById,
           accusedByName: recentEnded.accusedBy.name,
           reason: recentEnded.reason,
+          defense: recentEnded.defense,
           votesYes: recentEnded.votesYes,
           votesNo: recentEnded.votesNo,
           verdict: recentEnded.verdict as "kela" | "saeb" | "tie",
           isAccusedMe: recentEnded.userId === memberId,
         },
+        defensePhase: null,
       });
     }
 
     // 3. Nothing happening
-    return NextResponse.json({ activeVote: null, endedVote: null });
+    return NextResponse.json({
+      activeVote: null,
+      endedVote: null,
+      defensePhase: null,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Server error" }, { status: 500 });
   }

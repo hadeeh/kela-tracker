@@ -42,25 +42,28 @@ model RoomMember {
 }
 
 model KelaIncident {
-  id          String   @id @default(cuid())
-  roomId      String
-  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  userId      String
-  user        RoomMember @relation("AccusedMember", fields: [userId], references: [id], onDelete: Cascade)
-  accusedById String
-  accusedBy   RoomMember @relation("Accuser", fields: [accusedById], references: [id], onDelete: Cascade)
-  reason      String?
-  votesYes    Int      @default(0)
-  votesNo     Int      @default(0)
-  verdict     String   @default("pending")
-  rateAtTime  Int      @default(50)
-  paidAmount  Int      @default(0)
-  settledAt   DateTime?
-  photoId     String?
-  photo       Mugshot? @relation(fields: [photoId], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  roomId        String
+  room          Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId        String
+  user          RoomMember @relation("AccusedMember", fields: [userId], references: [id], onDelete: Cascade)
+  accusedById   String
+  accusedBy     RoomMember @relation("Accuser", fields: [accusedById], references: [id], onDelete: Cascade)
+  reason        String?
+  defense       String?  // accused's "last words" defense (required for vote to start)
+  defenseDeadline DateTime? // deadline for accused to submit defense
+  status        String   @default("voting") // "awaiting_defense" | "voting" | "cancelled" | "completed"
+  votesYes      Int      @default(0)
+  votesNo       Int      @default(0)
+  verdict       String   @default("pending")
+  rateAtTime    Int      @default(50)
+  paidAmount    Int      @default(0)
+  settledAt     DateTime?
+  photoId       String?
+  photo         Mugshot? @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
 
-  votes       Vote[]
+  votes         Vote[]
 
   @@index([roomId])
   @@index([createdAt])

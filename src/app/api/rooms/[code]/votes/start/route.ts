@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 const VOTE_DURATION_MS = 30_000;
+const DEFENSE_DEADLINE_MS = 30_000; // 30 seconds to submit defense
 
 // POST /api/rooms/[code]/votes/start
 // Body: { accusedId, accusedById, reason? }
-// Creates a new KelaIncident (pending) and returns it.
+// Creates a new KelaIncident with status "awaiting_defense".
+// The accused must submit a defense before voting begins.
 export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
@@ -26,22 +28,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       return NextResponse.json({ error: "Cannot accuse yourself." }, { status: 400 });
     }
 
-    // Check if there's already an active vote in this room
+    // Check if there's already an active incident (awaiting defense or voting)
     const existing = await db.kelaIncident.findFirst({
-      where: { roomId: room.id, verdict: "pending" },
+      where: {
+        roomId: room.id,
+        status: { in: ["awaiting_defense", "voting"] },
+      },
     });
     if (existing) {
-      // Check if the existing one has timed out
-      const elapsed = Date.now() - existing.createdAt.getTime();
-      if (elapsed < VOTE_DURATION_MS) {
-        return NextResponse.json({ error: "A vote is already in progress in this room." }, { status: 409 });
-      }
-      // Timed out — finalize it first
-      let verdict: "kela" | "saeb" | "tie";
-      if (existing.votesYes > existing.votesNo) verdict = "kela";
-      else if (existing.votesNo > existing.votesYes) verdict = "saeb";
-      else verdict = "tie";
-      await db.kelaIncident.update({ where: { id: existing.id }, data: { verdict } });
+      return NextResponse.json({ error: "A vote or defense is already in progress in this room." }, { status: 409 });
     }
 
     // Verify both members exist
@@ -51,14 +46,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const accuser = await db.roomMember.findFirst({ where: { id: accusedById, roomId: room.id } });
     if (!accuser) return NextResponse.json({ error: "Accuser member not found." }, { status: 404 });
 
-    // Create the incident — capture the accused's current rate as rateAtTime (historical)
+    // Create the incident with "awaiting_defense" status
+    const now = new Date();
+    const defenseDeadline = new Date(now.getTime() + DEFENSE_DEADLINE_MS);
+
     const incident = await db.kelaIncident.create({
       data: {
         roomId: room.id,
         userId: accusedId,
         accusedById,
         reason: reason?.toString().slice(0, 200) || null,
-        rateAtTime: accused.ratePerKela, // preserve the rate at time of incident
+        rateAtTime: accused.ratePerKela,
+        status: "awaiting_defense",
+        defenseDeadline,
       },
     });
 
@@ -69,8 +69,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
         accusedId: incident.userId,
         accusedById: incident.accusedById,
         reason: incident.reason,
-        startedAt: incident.createdAt.getTime(),
-        endsAt: incident.createdAt.getTime() + VOTE_DURATION_MS,
+        status: incident.status,
+        defenseDeadline: defenseDeadline.getTime(),
       },
     });
   } catch (e: any) {
