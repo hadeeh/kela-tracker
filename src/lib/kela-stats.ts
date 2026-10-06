@@ -10,89 +10,87 @@ export type IncidentForStats = {
   accusedBy: { id: string; name: string };
 };
 
-// ---- Kela Persona Generator ----
-// Generates a funny title based on the member's kela habits.
-export function generatePersona(
+// ---- Accused Persona Generator ----
+// Generates a SHAMEFUL title based on how often the member gets caught eating kela.
+// These should feel like PUNISHMENT — embarrassing, mocking, funny.
+export function generateAccusedPersona(
   memberId: string,
-  incidents: IncidentForStats[],
-  totalVotesCast: number
+  incidents: IncidentForStats[]
 ): { title: string; emoji: string; description: string } {
   const myGuilty = incidents.filter((i) => i.userId === memberId && i.verdict === "kela");
   const myAccused = incidents.filter((i) => i.userId === memberId);
-  const myAccusations = incidents.filter((i) => i.accusedById === memberId);
   const guiltyRate = myAccused.length > 0 ? myGuilty.length / myAccused.length : 0;
-  const accuseRate = myAccusations.length;
 
-  // Persona logic — pick the most fitting one
-  if (myGuilty.length === 0 && accuseRate === 0) {
-    return {
-      title: "The Innocent Bystander",
-      emoji: "😇",
-      description: "Hasn't eaten kela or accused anyone. Suspiciously clean.",
-    };
+  if (myGuilty.length === 0) {
+    return { title: "The Saint", emoji: "😇", description: "Zero confirmed kelas. Either genuinely chill or very sneaky." };
   }
-
+  if (myGuilty.length >= 20) {
+    return { title: "The Kela Addict", emoji: "🤡", description: "20+ confirmed kelas. Needs therapy, not a fine." };
+  }
   if (myGuilty.length >= 10 && guiltyRate >= 0.7) {
-    return {
-      title: "The Easily Triggered",
-      emoji: "😤",
-      description: "Eats kela at the slightest provocation. A certified delicate flower.",
-    };
+    return { title: "The Delicate Snowflake", emoji: "🥀", description: "Melts at the slightest breeze. Offended by everything." };
   }
-
   if (myGuilty.length >= 5 && guiltyRate >= 0.5) {
-    return {
-      title: "The Drama Queen",
-      emoji: "🎭",
-      description: "Turns every small comment into a full-blown kela situation.",
-    };
+    return { title: "The Drama Queen", emoji: "🎭", description: "Every conversation becomes a Bollywood scene." };
   }
-
-  if (accuseRate >= 10 && myGuilty.length < 3) {
-    return {
-      title: "The Kela Hunter",
-      emoji: "🎯",
-      description: "Always the first to point fingers. Rarely eats kela themselves.",
-    };
+  if (myGuilty.length >= 5) {
+    return { title: "The Serial Offendee", emoji: "😱", description: "Can't go a day without getting triggered." };
   }
-
-  if (myGuilty.length >= 3 && accuseRate >= 5) {
-    return {
-      title: "The Hypocrite",
-      emoji: "🤥",
-      description: "Eats kela AND accuses others. Truly chaotic neutral.",
-    };
+  if (myGuilty.length >= 1) {
+    return { title: "The First-Timer", emoji: "🍌", description: "Caught eating kela! The shame begins..." };
   }
+  return { title: "The Saint", emoji: "😇", description: "Zero confirmed kelas. Suspiciously clean." };
+}
 
-  if (myGuilty.length >= 1 && myGuilty.length < 3 && guiltyRate < 0.4) {
-    return {
-      title: "The Silent Sulker",
-      emoji: "🤐",
-      description: "Rarely eats kela, but when they do, it's a quiet, deadly sulk.",
-    };
+// ---- Accuser Persona Generator ----
+// Generates a PROUD title based on how often the member accuses others.
+// These should feel like ACHIEVEMENT — powerful, skilled, intimidating.
+export function generateAccuserPersona(
+  memberId: string,
+  incidents: IncidentForStats[]
+): { title: string; emoji: string; description: string } {
+  const myAccusations = incidents.filter((i) => i.accusedById === memberId);
+  const myConvictions = incidents.filter((i) => i.accusedById === memberId && i.verdict === "kela");
+  const convictionRate = myAccusations.length > 0 ? myConvictions.length / myAccusations.length : 0;
+
+  if (myAccusations.length === 0) {
+    return { title: "The Observer", emoji: "🧘", description: "Watching silently. Biding their time." };
   }
-
-  if (accuseRate >= 3 && accuseRate < 10) {
-    return {
-      title: "The Watchful Eye",
-      emoji: "👁️",
-      description: "Keeps tabs on everyone. Waiting for the perfect moment to strike.",
-    };
+  if (myAccusations.length >= 50) {
+    return { title: "The Kela Sniper", emoji: "🎯", description: "50+ accusations. Fear this person." };
   }
-
-  if (myGuilty.length >= 3) {
-    return {
-      title: "The Regular Offender",
-      emoji: "🍌",
-      description: "A frequent flyer in the kela court. Knows the drill by now.",
-    };
+  if (myAccusations.length >= 20 && convictionRate >= 0.7) {
+    return { title: "The Prosecuter", emoji: "⚖️", description: "Rarely misses. Every accusation lands." };
   }
+  if (myAccusations.length >= 10 && convictionRate >= 0.5) {
+    return { title: "The Bounty Hunter", emoji: "🏹", description: "Hunts kela eaters for sport." };
+  }
+  if (myAccusations.length >= 10) {
+    return { title: "The Instigator", emoji: "🔥", description: "Loves stirring the pot. Always pointing fingers." };
+  }
+  if (myAccusations.length >= 5) {
+    return { title: "The Watchdog", emoji: "🐕", description: "Keeps everyone honest. Can't fool them." };
+  }
+  if (myAccusations.length >= 1) {
+    return { title: "The Rookie Hunter", emoji: "🔍", description: "First accusation made. The hunt begins!" };
+  }
+  return { title: "The Observer", emoji: "🧘", description: "Watching silently. Biding their time." };
+}
 
-  return {
-    title: "The Rookie",
-    emoji: "🧑",
-    description: "Still finding their footing in the kela world.",
-  };
+// Legacy function — kept for backward compatibility, combines both personas
+export function generatePersona(
+  memberId: string,
+  incidents: IncidentForStats[],
+  _totalVotesCast: number
+): { title: string; emoji: string; description: string } {
+  const accusedPersona = generateAccusedPersona(memberId, incidents);
+  const accuserPersona = generateAccuserPersona(memberId, incidents);
+  // Return the more "interesting" one
+  const myGuilty = incidents.filter((i) => i.userId === memberId && i.verdict === "kela");
+  const myAccusations = incidents.filter((i) => i.accusedById === memberId);
+  if (myGuilty.length > myAccusations.length) return accusedPersona;
+  if (myAccusations.length > 0) return accuserPersona;
+  return { title: "The Innocent Bystander", emoji: "😇", description: "Hasn't eaten kela or accused anyone. Suspiciously clean." };
 }
 
 // ---- Kela Triggers ----

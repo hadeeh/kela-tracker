@@ -37,7 +37,7 @@ import { MemberManager } from "./member-manager";
 import { KelaStats } from "./kela-stats";
 import { HallOfShame } from "./hall-of-shame";
 import { getBadge, getNextBadge, BADGE_TIERS, getAccuserBadge, ACCUSER_BADGES } from "@/lib/badges";
-import { isInWalkOfShame, generatePersona } from "@/lib/kela-stats";
+import { isInWalkOfShame, generateAccusedPersona, generateAccuserPersona } from "@/lib/kela-stats";
 import { getKelaStreak, getAnniversaries, getAllHeadToHead, getSeasonalTheme, sendNotification, requestNotificationPermission } from "@/lib/kela-extras";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
@@ -672,13 +672,22 @@ export function RoomView({ room, me }: Props) {
           </Card>
         </div>
 
-        {/* Persona text at top (compact, not a card) */}
+        {/* Persona text at top — accused (shame) + accuser (achievement) */}
         {(() => {
-          const persona = generatePersona(me.memberId, incidents as any, 0);
+          const accusedPersona = generateAccusedPersona(me.memberId, incidents as any);
+          const accuserPersona = generateAccuserPersona(me.memberId, incidents as any);
           return (
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground px-1">
-              <span className="text-lg">{persona.emoji}</span>
-              <span><b className="text-foreground">{persona.title}</b> — {persona.description}</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm px-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-base">{accusedPersona.emoji}</span>
+                <span className="text-red-700"><b>Shame:</b> {accusedPersona.title}</span>
+                <span className="text-muted-foreground hidden sm:inline">— {accusedPersona.description}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-base">{accuserPersona.emoji}</span>
+                <span className="text-green-700"><b>Glory:</b> {accuserPersona.title}</span>
+                <span className="text-muted-foreground hidden sm:inline">— {accuserPersona.description}</span>
+              </div>
             </div>
           );
         })()}
