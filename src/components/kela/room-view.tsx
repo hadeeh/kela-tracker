@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -33,7 +33,10 @@ import { useSounds, useRoomSounds } from "./use-sounds";
 import { VoteModal } from "./vote-modal";
 import { AccusedModal, ResultModal } from "./modals";
 import { SoundManager } from "./sound-manager";
+import { KelaStats } from "./kela-stats";
+import { HallOfShame } from "./hall-of-shame";
 import { getBadge, getNextBadge, BADGE_TIERS } from "@/lib/badges";
+import { isInWalkOfShame } from "@/lib/kela-stats";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; status: string; joinedAt: string };
@@ -492,9 +495,33 @@ export function RoomView({ room, me }: Props) {
   // Minister = has "minister" role OR is the room host (hostEmail matches my email)
   const isMinister = myMember?.role === "minister" || (myMember?.email && myMember.email === room.hostEmail);
 
+  // Walk of Shame: 3+ kelas today → red screen + sad sound
+  const walkOfShame = useMemo(
+    () => incidents.some((i) => i.verdict === "kela") && isInWalkOfShame(me.memberId, incidents as any),
+    [incidents, me.memberId]
+  );
+
+  // Play walk of shame sound on mount
+  useEffect(() => {
+    if (walkOfShame) {
+      // Play sad sound after a short delay
+      const timer = setTimeout(() => play("walk-of-shame" as any), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [walkOfShame, play]);
+
   // ---- Render -----------------------------------------------------------
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
+    <div className={walkOfShame
+      ? "min-h-screen bg-gradient-to-br from-red-100 via-red-50 to-orange-100"
+      : "min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50"
+    }>
+      {/* Walk of Shame banner */}
+      {walkOfShame && (
+        <div className="bg-red-600 text-white text-center py-2 text-sm font-bold animate-pulse sticky top-0 z-50">
+          💀 WALK OF SHAME — You&apos;ve eaten 3+ kelas today! 💀
+        </div>
+      )}
       <div className="container mx-auto max-w-6xl p-4 space-y-4">
         {/* Header */}
         <header className="flex flex-wrap items-center justify-between gap-3 pt-2">
@@ -776,6 +803,34 @@ export function RoomView({ room, me }: Props) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Kela Stats: Persona, Most Wanted, Triggers, Trends, Calendar */}
+        <KelaStats
+          memberId={me.memberId}
+          members={members.filter((m) => m.status === "approved").map((m) => ({ id: m.id, name: m.name }))}
+          incidents={incidents as any}
+        />
+
+        {/* Hall of Shame: Mugshots */}
+        <HallOfShame roomCode={room.code} memberId={me.memberId} />
+
+        {/* PDF Export — minister only */}
+        {isMinister && incidents.length > 0 && (
+          <Card>
+            <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <div className="text-sm font-semibold">📄 Export Fine Ledger</div>
+                <div className="text-xs text-muted-foreground">Download all fines, payments, and balances as a text file</div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => window.open(`/api/rooms/${room.code}/ledger-pdf?memberId=${me.memberId}`, "_blank")}
+              >
+                📄 Download Ledger
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Members grid */}
         <Card>

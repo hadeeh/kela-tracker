@@ -56,6 +56,8 @@ model KelaIncident {
   rateAtTime Int      @default(50) // the accused's rate per kela WHEN this incident was created (historical)
   paidAmount Int      @default(0) // how much has been paid (in PKR)
   settledAt  DateTime?
+  mugshotId  String?  // link to Mugshot record (if uploaded)
+  mugshot    Mugshot? @relation(fields: [mugshotId], references: [id], onDelete: Set Null)
   createdAt  DateTime @default(now())
 
   votes      Vote[]
@@ -75,6 +77,23 @@ model Vote {
 
   @@unique([incidentId, voterId])
   @@index([incidentId])
+}
+
+// Mugshots uploaded when someone is found guilty — stored in the Hall of Shame.
+model Mugshot {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  uploaderId String  // member who uploaded (usually the guilty person or minister)
+  incidentId String? // optional: linked to a specific incident
+  data      Bytes    // the image file bytes
+  mimeType  String
+  caption   String?  // funny caption
+  createdAt DateTime @default(now())
+
+  incidents KelaIncident[]
+
+  @@index([roomId])
 }
 
 // Custom sounds uploaded by the Kela Minister — stored in the database so they

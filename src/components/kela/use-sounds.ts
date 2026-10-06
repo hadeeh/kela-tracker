@@ -6,7 +6,8 @@ export type SoundName =
   | "vote-start" | "kela-vote" | "saeb-vote"
   | "result-kela" | "result-saeb" | "result-tie"
   | "badge-rookie" | "badge-starter" | "badge-bronze" | "badge-silver"
-  | "badge-gold" | "badge-platinum" | "badge-diamond";
+  | "badge-gold" | "badge-platinum" | "badge-diamond"
+  | "walk-of-shame";
 
 const DEFAULT_SOUND_FILES: Record<SoundName, string> = {
   "vote-start":       "/sounds/vote-start.wav",
@@ -22,6 +23,7 @@ const DEFAULT_SOUND_FILES: Record<SoundName, string> = {
   "badge-gold":       "/sounds/badge-gold.wav",
   "badge-platinum":   "/sounds/badge-platinum.wav",
   "badge-diamond":    "/sounds/badge-diamond.wav",
+  "walk-of-shame":    "/sounds/walk-of-shame.wav",
 };
 
 // All sound types that can be customized by the minister
