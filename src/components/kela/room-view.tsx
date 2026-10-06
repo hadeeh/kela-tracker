@@ -33,6 +33,7 @@ import { useSounds, useRoomSounds } from "./use-sounds";
 import { VoteModal } from "./vote-modal";
 import { AccusedModal, ResultModal } from "./modals";
 import { SoundManager } from "./sound-manager";
+import { MemberManager } from "./member-manager";
 import { KelaStats } from "./kela-stats";
 import { HallOfShame } from "./hall-of-shame";
 import { getBadge, getNextBadge, BADGE_TIERS } from "@/lib/badges";
@@ -688,6 +689,16 @@ export function RoomView({ room, me }: Props) {
             roomCode={room.code}
             memberId={me.memberId}
             onSoundsChanged={() => {}}
+          />
+        )}
+
+        {/* Member Management — only visible to the Kela Minister */}
+        {isMinister && (
+          <MemberManager
+            roomCode={room.code}
+            memberId={me.memberId}
+            members={members}
+            onRateChanged={refreshData}
           />
         )}
 
