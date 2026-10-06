@@ -30,6 +30,7 @@ model RoomMember {
   name      String
   ratePerKela Int    @default(50)
   role      String?  // "minister" = Kela Minister (can manage sounds), null = regular member
+  status    String   @default("approved") // "approved" | "pending" | "rejected"
   joinedAt  DateTime @default(now())
 
   incidents  KelaIncident[] @relation("AccusedMember")

@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 // POST /api/rooms/[code]/join — join an existing room with name + email (no password)
+// If joining via code (not pre-invited), status = "pending" (minister must approve)
 // If the email already exists in this room:
-//   - If they were pre-invited (placeholder name), update their name + return them
-//   - If they already joined before, just return them (no update)
+//   - If they were pre-invited (approved), return them
 //   - If they were anonymized ("Removed User"), reject with clear message
 export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
@@ -37,7 +37,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       }
 
       // If the existing member has a placeholder name (from email invite), update it
-      // with the real name the user is providing now.
       if (existing.name !== name && existing.name === email.split("@")[0]) {
         const updated = await db.roomMember.update({
           where: { id: existing.id },
@@ -58,14 +57,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       });
     }
 
-    // New member — create
+    // New member — create with "pending" status (minister must approve)
     const member = await db.roomMember.create({
-      data: { roomId: room.id, name, email, ratePerKela: 50 },
+      data: {
+        roomId: room.id,
+        name,
+        email,
+        ratePerKela: 50,
+        status: "pending", // requires minister approval
+      },
     });
 
     return NextResponse.json({
       room: { id: room.id, code: room.code, name: room.name },
       member,
+      pendingApproval: true,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Server error" }, { status: 500 });

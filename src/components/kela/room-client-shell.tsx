@@ -14,10 +14,11 @@ import { RoomView } from "./room-view";
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Identity = { memberId: string; memberName: string; memberEmail: string };
 
-// State: "loading" | "joining" | "in-room"
+// State: "loading" | "joining" | "pending" | "in-room"
 type State =
   | { status: "loading" }
   | { status: "joining" }
+  | { status: "pending"; me: Identity }
   | { status: "in-room"; me: Identity };
 
 export function RoomClientShell({ room }: { room: Room }) {
@@ -65,7 +66,12 @@ export function RoomClientShell({ room }: { room: Room }) {
       }
       const identity: Identity = { memberId: data.member.id, memberName: data.member.name, memberEmail: data.member.email };
       localStorage.setItem(`kela:${room.code}`, JSON.stringify(identity));
-      setState({ status: "in-room", me: identity });
+
+      if (data.pendingApproval) {
+        setState({ status: "pending", me: identity });
+      } else {
+        setState({ status: "in-room", me: identity });
+      }
     } catch (e: any) {
       toast.error(e?.message || "Something went wrong.");
       setJoining(false);
@@ -77,6 +83,41 @@ export function RoomClientShell({ room }: { room: Room }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 via-amber-100 to-yellow-200">
         <Loader2 className="h-8 w-8 animate-spin text-yellow-600" />
+      </div>
+    );
+  }
+
+  // Pending state — waiting for minister approval
+  if (state.status === "pending") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-50 via-amber-100 to-yellow-200 p-4">
+        <div className="w-full max-w-md text-center">
+          <div className="text-6xl mb-4 inline-block animate-bounce">⏳</div>
+          <h1 className="text-2xl font-bold tracking-tight text-yellow-950 mb-2">
+            Waiting for Approval
+          </h1>
+          <p className="text-sm text-yellow-800 mb-6">
+            Hi {state.me.memberName}! The Kela Minister needs to approve your join request before you can enter the room.
+          </p>
+          <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-4 mb-4">
+            <p className="text-xs text-yellow-700">
+              Room: <span className="font-semibold">{room.name}</span><br />
+              Code: <span className="font-mono font-semibold">{room.code}</span><br />
+              Your name: <span className="font-semibold">{state.me.memberName}</span><br />
+              Your email: <span className="font-semibold">{state.me.memberEmail}</span>
+            </p>
+          </div>
+          <p className="text-xs text-yellow-700">
+            Keep this page open — it will automatically load once you&apos;re approved.
+            Or check back in a minute.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 text-xs text-yellow-800 hover:underline"
+          >
+            🔄 Refresh to check status
+          </button>
+        </div>
       </div>
     );
   }

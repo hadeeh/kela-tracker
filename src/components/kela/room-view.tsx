@@ -36,7 +36,7 @@ import { SoundManager } from "./sound-manager";
 import { getBadge, getNextBadge, BADGE_TIERS } from "@/lib/badges";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
-type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; joinedAt: string };
+type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; status: string; joinedAt: string };
 type Incident = {
   id: string;
   userId: string;
@@ -451,6 +451,30 @@ export function RoomView({ room, me }: Props) {
     }
   }
 
+  // Minister: approve or reject a pending member
+  async function handleApproveMember(memberId: string, memberName: string, action: "approve" | "reject") {
+    try {
+      const res = await fetch(`/api/rooms/${room.code}/members/${memberId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: me.memberId, action }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || `Failed to ${action} member.`);
+        return;
+      }
+      if (action === "approve") {
+        toast.success(`✓ Approved ${memberName}! They can now join the room.`);
+      } else {
+        toast.success(`Rejected ${memberName}'s join request.`);
+      }
+      refreshData();
+    } catch (e: any) {
+      toast.error(e?.message || `Failed to ${action} member.`);
+    }
+  }
+
   function handleLeave() {
     localStorage.removeItem(`kela:${room.code}`);
     router.push("/");
@@ -586,6 +610,51 @@ export function RoomView({ room, me }: Props) {
         </Card>
         )}
 
+        {/* Pending Requests — only visible to the Kela Minister */}
+        {isMinister && members.filter((m) => m.status === "pending").length > 0 && (
+          <Card className="border-orange-300 bg-orange-50">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                ⏳ Pending Join Requests
+                <Badge variant="secondary" className="bg-orange-200 text-orange-800 hover:bg-orange-200">
+                  {members.filter((m) => m.status === "pending").length}
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Someone found your room code! Approve or reject their join request.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {members.filter((m) => m.status === "pending").map((m) => (
+                <div key={m.id} className="flex items-center gap-3 rounded-lg border bg-white p-3">
+                  <Avatar className="h-9 w-9 bg-orange-200 text-orange-900 flex-shrink-0">
+                    <AvatarFallback className="text-xs">{m.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm truncate">{m.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{m.email}</div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-green-500 hover:bg-green-600 text-white h-7 text-xs"
+                    onClick={() => handleApproveMember(m.id, m.name, "approve")}
+                  >
+                    ✓ Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 text-xs"
+                    onClick={() => handleApproveMember(m.id, m.name, "reject")}
+                  >
+                    ✕ Reject
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Sound Manager — only visible to the Kela Minister */}
         {isMinister && (
           <SoundManager
@@ -608,7 +677,7 @@ export function RoomView({ room, me }: Props) {
             </CardHeader>
             <CardContent>
               {(() => {
-                const ranked = members
+                const ranked = members.filter((m) => m.status === "approved")
                   .map((m) => {
                     const guilty = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela").length;
                     const memberIncidents = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela");
@@ -713,7 +782,7 @@ export function RoomView({ room, me }: Props) {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Users className="h-5 w-5" /> Friend Circle
-              <Badge variant="secondary" className="ml-1">{members.length}</Badge>
+              <Badge variant="secondary" className="ml-1">{members.filter((m) => m.status === "approved").length}</Badge>
             </CardTitle>
             <CardDescription>
               Spot someone eating kela? Click <b>Kelaaaa</b> to start a vote. Everyone except the accused will get a popup to vote 🍌 or 🍎.
@@ -724,7 +793,7 @@ export function RoomView({ room, me }: Props) {
               <div className="flex justify-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : members.length <= 1 ? (
+            ) : members.filter((m) => m.id !== me.memberId && m.status === "approved").length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
                 <div className="text-4xl mb-2">👋</div>
                 <p className="font-medium">You&apos;re the only one here so far.</p>
@@ -732,7 +801,7 @@ export function RoomView({ room, me }: Props) {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {members.filter((m) => m.id !== me.memberId).map((m) => {
+                {members.filter((m) => m.id !== me.memberId && m.status === "approved").map((m) => {
                   const memberIncidents = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela");
                   const guilty = memberIncidents.length;
                   const totalPaid = memberIncidents.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
