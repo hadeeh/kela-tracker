@@ -2,12 +2,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 const VOTE_DURATION_MS = 30_000;
-const DEFENSE_DEADLINE_MS = 30_000; // 30 seconds to submit defense
 
 // POST /api/rooms/[code]/votes/start
 // Body: { accusedId, accusedById, reason? }
-// Creates a new KelaIncident with status "awaiting_defense".
-// The accused must submit a defense before voting begins.
+// Creates a new KelaIncident with status "voting" — vote starts IMMEDIATELY.
+// The accused can add their defense DURING the voting (optional, not required).
 export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
@@ -28,15 +27,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       return NextResponse.json({ error: "Cannot accuse yourself." }, { status: 400 });
     }
 
-    // Check if there's already an active incident (awaiting defense or voting)
+    // Check if there's already an active incident
     const existing = await db.kelaIncident.findFirst({
       where: {
         roomId: room.id,
-        status: { in: ["awaiting_defense", "voting"] },
+        status: "voting",
       },
     });
     if (existing) {
-      return NextResponse.json({ error: "A vote or defense is already in progress in this room." }, { status: 409 });
+      return NextResponse.json({ error: "A vote is already in progress in this room." }, { status: 409 });
     }
 
     // Verify both members exist
@@ -46,10 +45,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const accuser = await db.roomMember.findFirst({ where: { id: accusedById, roomId: room.id } });
     if (!accuser) return NextResponse.json({ error: "Accuser member not found." }, { status: 404 });
 
-    // Create the incident with "awaiting_defense" status
-    const now = new Date();
-    const defenseDeadline = new Date(now.getTime() + DEFENSE_DEADLINE_MS);
-
+    // Create the incident — vote starts IMMEDIATELY (status = "voting")
+    // The accused can add their defense during the voting period (optional)
     const incident = await db.kelaIncident.create({
       data: {
         roomId: room.id,
@@ -57,8 +54,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
         accusedById,
         reason: reason?.toString().slice(0, 200) || null,
         rateAtTime: accused.ratePerKela,
-        status: "awaiting_defense",
-        defenseDeadline,
+        status: "voting",
       },
     });
 
@@ -70,7 +66,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
         accusedById: incident.accusedById,
         reason: incident.reason,
         status: incident.status,
-        defenseDeadline: defenseDeadline.getTime(),
+        startedAt: incident.createdAt.getTime(),
+        endsAt: incident.createdAt.getTime() + VOTE_DURATION_MS,
       },
     });
   } catch (e: any) {

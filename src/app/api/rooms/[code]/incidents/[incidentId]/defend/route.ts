@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const VOTE_DURATION_MS = 30_000;
-
 // POST /api/rooms/[code]/incidents/[incidentId]/defend
-// The accused submits their "last words" defense.
-// This transitions the incident from "awaiting_defense" to "voting".
+// The accused submits their "last words" defense DURING the voting period.
+// This does NOT start or stop the vote — it just adds the defense text.
 // Body: { memberId, defense }
 export async function POST(
   req: Request,
@@ -32,39 +30,20 @@ export async function POST(
       return NextResponse.json({ error: "Only the accused can submit a defense." }, { status: 403 });
     }
 
-    // Check if still in defense phase
-    if (incident.status !== "awaiting_defense") {
-      return NextResponse.json({ error: "Defense phase has ended." }, { status: 400 });
+    // Must be during voting phase
+    if (incident.status !== "voting") {
+      return NextResponse.json({ error: "Voting is not active." }, { status: 400 });
     }
 
-    // Check deadline
-    if (incident.defenseDeadline && Date.now() > incident.defenseDeadline.getTime()) {
-      // Deadline passed — cancel the incident
-      await db.kelaIncident.update({
-        where: { id: incidentId },
-        data: { status: "cancelled", verdict: "cancelled" },
-      });
-      return NextResponse.json({ error: "Defense deadline passed. Vote cancelled." }, { status: 400 });
-    }
-
-    // Submit defense + start voting
-    const now = new Date();
-    const endsAt = new Date(now.getTime() + VOTE_DURATION_MS);
-
+    // Update the defense (can be submitted at any time during voting)
     await db.kelaIncident.update({
       where: { id: incidentId },
-      data: {
-        defense,
-        status: "voting",
-        // Update createdAt to now so the vote timer starts fresh
-        createdAt: now,
-      },
+      data: { defense },
     });
 
     return NextResponse.json({
       ok: true,
       defense,
-      voteEndsAt: endsAt.getTime(),
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Server error" }, { status: 500 });

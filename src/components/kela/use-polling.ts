@@ -34,24 +34,9 @@ export type EndedVote = {
   isAccusedMe: boolean;
 };
 
-export type DefensePhase = {
-  incidentId: string;
-  accusedId: string;
-  accusedName: string;
-  accusedById: string;
-  accusedByName: string;
-  reason: string | null;
-  defenseDeadline: number;
-  timeLeft: number;
-  isAccused: boolean;
-};
-
 type PollResponse = {
   activeVote: ActiveVote | null;
   endedVote: EndedVote | null;
-  defensePhase: DefensePhase | null;
-  defenseExpired?: boolean;
-  accusedName?: string;
 };
 
 type Handlers = {
@@ -59,8 +44,7 @@ type Handlers = {
   onAccused?: (v: ActiveVote) => void;
   onVoteUpdate?: (votesYes: number, votesNo: number, lastChoice: "kela" | "saeb") => void;
   onVoteEnded?: (v: EndedVote) => void;
-  onDefensePhase?: (d: DefensePhase) => void;
-  onDefenseExpired?: (accusedName: string) => void;
+  onDefenseUpdated?: (defense: string) => void;
 };
 
 const POLL_INTERVAL_MS = 700;
@@ -72,16 +56,15 @@ export function usePolling(
 ) {
   const [activeVote, setActiveVote] = useState<ActiveVote | null>(null);
   const [endedVote, setEndedVote] = useState<EndedVote | null>(null);
-  const [defensePhase, setDefensePhase] = useState<DefensePhase | null>(null);
   const handlersRef = useRef(handlers);
   useEffect(() => {
     handlersRef.current = handlers;
   });
 
   const prevActiveId = useRef<string | null>(null);
-  const prevDefenseId = useRef<string | null>(null);
   const prevVotesYes = useRef(0);
   const prevVotesNo = useRef(0);
+  const prevDefense = useRef<string | null>(null);
   const shownEndedIds = useRef<Set<string>>(new Set());
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -100,37 +83,6 @@ export function usePolling(
         const data: PollResponse = await res.json();
         if (cancelled) return;
 
-        // ---- Handle defense phase ----
-        if (data.defensePhase) {
-          const dp = data.defensePhase;
-          if (prevDefenseId.current !== dp.incidentId) {
-            // New defense phase
-            if (dp.isAccused) {
-              handlersRef.current.onDefensePhase?.(dp);
-            }
-            prevDefenseId.current = dp.incidentId;
-          }
-          setDefensePhase(dp);
-          setActiveVote(null);
-          setEndedVote(null);
-          return;
-        }
-
-        // Defense expired (accused didn't respond in time)
-        if (data.defenseExpired && data.accusedName) {
-          prevDefenseId.current = null;
-          setDefensePhase(null);
-          setActiveVote(null);
-          handlersRef.current.onDefenseExpired?.(data.accusedName);
-          return;
-        }
-
-        // No defense phase
-        if (prevDefenseId.current) {
-          prevDefenseId.current = null;
-          setDefensePhase(null);
-        }
-
         // ---- Handle active vote ----
         if (data.activeVote) {
           const av = data.activeVote;
@@ -144,7 +96,9 @@ export function usePolling(
             }
             prevVotesYes.current = av.votesYes;
             prevVotesNo.current = av.votesNo;
+            prevDefense.current = av.defense;
           } else {
+            // Check for tally changes
             if (av.votesYes > prevVotesYes.current) {
               handlersRef.current.onVoteUpdate?.(av.votesYes, av.votesNo, "kela");
             }
@@ -153,6 +107,12 @@ export function usePolling(
             }
             prevVotesYes.current = av.votesYes;
             prevVotesNo.current = av.votesNo;
+
+            // Check for defense update
+            if (av.defense !== prevDefense.current && av.defense) {
+              handlersRef.current.onDefenseUpdated?.(av.defense);
+              prevDefense.current = av.defense;
+            }
           }
 
           prevActiveId.current = av.incidentId;
@@ -163,6 +123,7 @@ export function usePolling(
             prevActiveId.current = null;
             prevVotesYes.current = 0;
             prevVotesNo.current = 0;
+            prevDefense.current = null;
           }
           setActiveVote(null);
 
@@ -238,6 +199,7 @@ export function usePolling(
     [roomCode, memberId]
   );
 
+  // Submit defense DURING voting (optional)
   const submitDefense = useCallback(
     async (incidentId: string, defense: string): Promise<{ ok?: boolean; error?: string }> => {
       if (!roomCode || !memberId) return { error: "Not in a room" };
@@ -267,7 +229,6 @@ export function usePolling(
   return {
     activeVote,
     endedVote,
-    defensePhase,
     startVote,
     castVote,
     submitDefense,

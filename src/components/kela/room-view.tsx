@@ -31,7 +31,6 @@ import {
 } from "./use-polling";
 import { useSounds, useRoomSounds } from "./use-sounds";
 import { VoteModal } from "./vote-modal";
-import { DefenseModal } from "./defense-modal";
 import { AccusedModal, ResultModal } from "./modals";
 import { SoundManager } from "./sound-manager";
 import { MemberManager } from "./member-manager";
@@ -179,30 +178,17 @@ export function RoomView({ room, me }: Props) {
   }, [play, incidents]);
 
   const {
-    activeVote, endedVote, defensePhase, startVote, castVote, submitDefense, dismissEndedVote,
+    activeVote, endedVote, startVote, castVote, submitDefense, dismissEndedVote,
   } = usePolling(room.code, me.memberId, {
     onVoteStarted,
     onAccused,
     onVoteUpdate,
     onVoteEnded,
-    onDefensePhase: (_dp: DefensePhase) => {
-      setDefenseOpen(true);
-      play("vote-start");
-      toast.message("⚖️ You've been accused! Submit your defense!");
-    },
-    onDefenseExpired: (accusedName: string) => {
-      toast.info(`⏰ ${accusedName} didn't respond in time. Vote cancelled.`);
+    onDefenseUpdated: (defense: string) => {
+      // The accused submitted their defense during voting — update the vote modal
+      toast.message(`🛡️ Defense added: "${defense}"`);
     },
   });
-
-  // Sync defense modal with polling state
-  useEffect(() => {
-    if (defensePhase) {
-      setDefenseOpen(true);
-    } else {
-      setDefenseOpen(false);
-    }
-  }, [defensePhase]);
 
   // Sync modal state with polling state
   useEffect(() => {
@@ -504,16 +490,15 @@ export function RoomView({ room, me }: Props) {
   }
 
   async function handleSubmitDefense(defense: string) {
-    if (!defensePhase) return;
+    if (!activeVote) return;
     setSubmittingDefense(true);
-    const result = await submitDefense(defensePhase.incidentId, defense);
+    const result = await submitDefense(activeVote.incidentId, defense);
     setSubmittingDefense(false);
     if (result.error) {
       toast.error(result.error);
       return;
     }
-    toast.success("🛡️ Defense submitted! Vote starting...");
-    setDefenseOpen(false);
+    toast.success("🛡️ Defense submitted! Voters can see it now.");
   }
 
   // Request notification permission on mount
@@ -1380,14 +1365,6 @@ export function RoomView({ room, me }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Defense modal (I'm the accused — must defend before vote starts) */}
-      <DefenseModal
-        open={defenseOpen}
-        defensePhase={defensePhase}
-        onSubmit={handleSubmitDefense}
-        submitting={submittingDefense}
-      />
-
       {/* Active vote modal (I'm a voter) */}
       <VoteModal
         open={voteOpen}
@@ -1396,10 +1373,12 @@ export function RoomView({ room, me }: Props) {
         votedChoice={votedChoice}
       />
 
-      {/* Accused modal (I'm the accused) */}
+      {/* Accused modal (I'm the accused — can add defense during voting) */}
       <AccusedModal
         open={accusedOpen}
         activeVote={activeVote}
+        onSubmitDefense={handleSubmitDefense}
+        submittingDefense={submittingDefense}
         onClose={() => setAccusedOpen(false)}
       />
 

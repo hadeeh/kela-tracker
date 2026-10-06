@@ -59,7 +59,7 @@ export function VoteModal({ open, activeVote, onVote, votedChoice }: Props) {
               <div className="text-sm text-yellow-700 font-medium">Accused</div>
               <div className="text-2xl font-bold text-yellow-900 mt-1">{activeVote.accusedName}</div>
               {activeVote.reason ? (
-                <div className="text-sm text-yellow-800 mt-2 italic">&ldquo;{activeVote.reason}&rdquo;</div>
+                <div className="text-sm text-yellow-800 mt-2 italic">🍌 &ldquo;{activeVote.reason}&rdquo;</div>
               ) : (
                 <div className="text-sm text-yellow-700 mt-2 italic">No reason given</div>
               )}
@@ -67,6 +67,14 @@ export function VoteModal({ open, activeVote, onVote, votedChoice }: Props) {
                 Accused by <span className="font-semibold">{activeVote.accusedByName}</span>
               </div>
             </div>
+
+            {/* Defense (if submitted by the accused during voting) */}
+            {activeVote.defense && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                <div className="text-xs font-bold text-blue-700 uppercase mb-1">🛡️ Defense</div>
+                <div className="text-sm text-blue-900 italic">&ldquo;{activeVote.defense}&rdquo;</div>
+              </div>
+            )}
 
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">

@@ -1,17 +1,38 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2 } from "lucide-react";
 import type { ActiveVote, EndedVote } from "./use-polling";
 
-type AccusedProps = {
+type Props = {
   open: boolean;
   activeVote: ActiveVote | null;
+  onSubmitDefense: (defense: string) => void;
+  submittingDefense: boolean;
   onClose: () => void;
 };
 
-export function AccusedModal({ open, activeVote, onClose }: AccusedProps) {
+export function AccusedModal({ open, activeVote, onSubmitDefense, submittingDefense, onClose }: Props) {
+  const [defense, setDefense] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (activeVote?.defense) {
+      setDefense(activeVote.defense);
+      setSubmitted(true);
+    } else {
+      setDefense("");
+      setSubmitted(false);
+    }
+  }, [activeVote?.incidentId, activeVote?.defense]);
+
   if (!activeVote) return null;
+
   return (
     <Dialog open={open}>
       <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
@@ -22,18 +43,56 @@ export function AccusedModal({ open, activeVote, onClose }: AccusedProps) {
           </DialogTitle>
           <DialogDescription className="text-center pt-1">
             <span className="font-semibold text-foreground">{activeVote.accusedByName}</span> thinks you ate kela.
+            Voting is in progress — add your defense below!
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-4 text-center">
-            <div className="text-sm text-yellow-700 font-medium">Reason</div>
-            <div className="text-sm text-yellow-900 mt-1 italic">
+          {/* Accusation */}
+          <div className="rounded-xl bg-red-50 border border-red-200 p-3">
+            <div className="text-xs font-bold text-red-700 uppercase mb-1">🍌 Accusation</div>
+            <div className="text-sm text-red-900 italic">
               {activeVote.reason ? `"${activeVote.reason}"` : "No reason given"}
             </div>
           </div>
-          <p className="text-sm text-muted-foreground text-center">
-            You cannot vote in your own trial. Sit tight while your friends decide your fate... 🍌
-          </p>
+
+          {/* Defense input (optional — can be submitted during voting) */}
+          {!submitted ? (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">🛡️ Your Defense (optional)</label>
+              <Textarea
+                placeholder="e.g. I was just joking bro! That wasn't even offensive..."
+                value={defense}
+                onChange={(e) => setDefense(e.target.value)}
+                maxLength={200}
+                rows={2}
+                disabled={submittingDefense}
+              />
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">{defense.length}/200</div>
+                <Button
+                  size="sm"
+                  disabled={!defense.trim() || submittingDefense}
+                  onClick={() => {
+                    onSubmitDefense(defense.trim());
+                    setSubmitted(true);
+                  }}
+                >
+                  {submittingDefense ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                  🛡️ Submit Defense
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Voting continues while you type. If you don&apos;t submit, voting proceeds without your defense.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl bg-blue-50 border border-blue-200 p-3">
+              <div className="text-xs font-bold text-blue-700 uppercase mb-1">🛡️ Your Defense</div>
+              <div className="text-sm text-blue-900 italic">"{defense}"</div>
+              <div className="text-[10px] text-blue-600 mt-1">✓ Submitted — voters can see it now</div>
+            </div>
+          )}
+
           <Button className="w-full" variant="outline" onClick={onClose}>
             Got it
           </Button>
@@ -43,6 +102,7 @@ export function AccusedModal({ open, activeVote, onClose }: AccusedProps) {
   );
 }
 
+// ---- Result Modal ----
 type ResultProps = {
   open: boolean;
   endedVote: EndedVote | null;
@@ -80,6 +140,20 @@ export function ResultModal({ open, endedVote, onClose }: ResultProps) {
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Show reason + defense */}
+          {endedVote.reason && (
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3">
+              <div className="text-xs font-bold text-red-700 uppercase mb-1">🍌 Accusation by {endedVote.accusedByName}</div>
+              <div className="text-sm text-red-900 italic">"{endedVote.reason}"</div>
+            </div>
+          )}
+          {endedVote.defense && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <div className="text-xs font-bold text-blue-700 uppercase mb-1">🛡️ Defense by {endedVote.accusedName}</div>
+              <div className="text-sm text-blue-900 italic">"{endedVote.defense}"</div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className={`rounded-lg p-4 text-center border ${isGuilty ? "bg-yellow-100 border-yellow-300" : "bg-muted border-border"}`}>
               <div className="text-3xl font-bold">{endedVote.votesYes}</div>
@@ -95,7 +169,6 @@ export function ResultModal({ open, endedVote, onClose }: ResultProps) {
             <div className="font-medium">{endedVote.accusedName}</div>
             <div className="text-muted-foreground text-xs mt-1">
               accused by {endedVote.accusedByName}
-              {endedVote.reason ? ` · "${endedVote.reason}"` : ""}
             </div>
           </div>
 
