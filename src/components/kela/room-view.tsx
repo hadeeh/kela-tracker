@@ -860,84 +860,6 @@ export function RoomView({ room, me }: Props) {
           </Card>
         )}
 
-        {/* Badge Legend */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">🏅 Badge Legend</CardTitle>
-            <CardDescription>
-              Earn badges by eating kela. The more kelas you eat, the higher your rank. Badges are permanent achievements.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {BADGE_TIERS.map((tier) => (
-                <div
-                  key={tier.minKelas}
-                  className={`flex items-center gap-3 rounded-lg border p-3 ${tier.color}`}
-                >
-                  <div className="text-3xl flex-shrink-0">{tier.emoji}</div>
-                  <div className="min-w-0">
-                    <div className="font-bold text-sm">{tier.title}</div>
-                    <div className="text-xs opacity-80">{tier.tier} · {tier.minKelas}+ kelas</div>
-                    <div className="text-[11px] opacity-70 truncate">{tier.description}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Accuser badges */}
-            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground pt-4 pb-2">🏹 Accuser Achievements</div>
-            <p className="text-xs text-muted-foreground -mt-1 mb-2">Earned by accusing others — the more you accuse, the higher your rank!</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {ACCUSER_ACHIEVEMENTS.map((badge) => (
-                <div key={badge.id} className={`flex items-center gap-3 rounded-lg border p-3 ${badge.color}`}>
-                  <div className="text-3xl flex-shrink-0">{badge.sticker}</div>
-                  <div className="min-w-0">
-                    <div className="font-bold text-sm">{badge.emoji} {badge.title}</div>
-                    <div className="text-xs opacity-80">{badge.minAccusations}+ accusations</div>
-                    <div className="text-[11px] opacity-70 truncate">{badge.description}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Kela Stats: Most Wanted, Triggers, Trends, Calendar */}
-        <KelaStats
-          memberId={me.memberId}
-          members={members.filter((m) => m.status === "approved").map((m) => ({ id: m.id, name: m.name }))}
-          incidents={incidents as any}
-        />
-
-        {/* Accuser Achievements (PUBG-style sticker unlocks) */}
-        <AccuserAchievements accusationCount={myAccusations} />
-
-        {/* Hall of Shame: Mugshots */}
-        <HallOfShame
-          roomCode={room.code}
-          memberId={me.memberId}
-          members={members.filter((m) => m.status === "approved").map((m) => ({ id: m.id, name: m.name }))}
-        />
-
-        {/* PDF Export — minister only */}
-        {isMinister && incidents.length > 0 && (
-          <Card>
-            <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <div className="text-sm font-semibold">📄 Export Fine Ledger</div>
-                <div className="text-xs text-muted-foreground">Download all fines, payments, and balances as a text file</div>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => window.open(`/api/rooms/${room.code}/ledger-pdf?memberId=${me.memberId}`, "_blank")}
-              >
-                📄 Download Ledger
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Members grid */}
         <Card>
           <CardHeader>
@@ -1291,6 +1213,43 @@ export function RoomView({ room, me }: Props) {
         {/* ============ SETTINGS TAB ============ */}
         {activeTab === "settings" && (
         <>
+          {/* Badge Legend (everyone can see) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">🏅 Badge Legend</CardTitle>
+              <CardDescription>Earn badges by eating kela (shame) and accusing others (glory).</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground pb-2">🍌 Eater Badges (Shame)</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {BADGE_TIERS.map((tier) => (
+                  <div key={tier.minKelas} className={`flex items-center gap-3 rounded-lg border p-3 ${tier.color}`}>
+                    <div className="text-3xl flex-shrink-0">{tier.emoji}</div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-sm">{tier.title}</div>
+                      <div className="text-xs opacity-80">{tier.tier} · {tier.minKelas}+ kelas</div>
+                      <div className="text-[11px] opacity-70 truncate">{tier.description}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground pt-4 pb-2">🏹 Accuser Achievements (Glory)</div>
+              <p className="text-xs text-muted-foreground -mt-1 mb-2">Unlock stickers as you accuse more!</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {ACCUSER_ACHIEVEMENTS.map((badge) => (
+                  <div key={badge.id} className={`flex items-center gap-3 rounded-lg border p-3 ${badge.color}`}>
+                    <div className="text-3xl flex-shrink-0">{badge.sticker}</div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-sm">{badge.emoji} {badge.title}</div>
+                      <div className="text-xs opacity-80">{badge.minAccusations}+ accusations</div>
+                      <div className="text-[11px] opacity-70 truncate">{badge.description}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Sound Manager (minister only) */}
           {isMinister && (
             <SoundManager roomCode={room.code} memberId={me.memberId} onSoundsChanged={() => {}} />
@@ -1302,9 +1261,6 @@ export function RoomView({ room, me }: Props) {
           {/* PDF Export (minister only) */}
           {isMinister && incidents.length > 0 && (
             <Card><CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap"><div><div className="text-sm font-semibold">📄 Export Fine Ledger</div><div className="text-xs text-muted-foreground">Download all fines, payments, and balances</div></div><Button variant="outline" onClick={() => window.open(`/api/rooms/${room.code}/ledger-pdf?memberId=${me.memberId}`, "_blank")}>📄 Download Ledger</Button></CardContent></Card>
-          )}
-          {!isMinister && (
-            <Card><CardContent className="p-8 text-center text-muted-foreground"><div className="text-3xl mb-2">👤</div><p className="text-sm font-medium">You&apos;re a regular member.</p><p className="text-xs mt-1">Only the Kela Minister can manage settings.</p></CardContent></Card>
           )}
         </>
         )}
