@@ -60,6 +60,43 @@ export function getKelaStreak(memberId: string, incidents: IncidentForStats[]): 
   return streak;
 }
 
+// ---- Accuser Streaks ----
+// Tracks consecutive days of accusing others (at least 1 accusation per day)
+export function getAccuserStreak(memberId: string, incidents: IncidentForStats[]): number {
+  const accuseDateKeys = incidents
+    .filter((i) => i.accusedById === memberId)
+    .map((i) => getUTCDayKey(i.createdAt))
+    .sort((a, b) => b.localeCompare(a));
+
+  if (accuseDateKeys.length === 0) return 0;
+
+  const uniqueDates: string[] = [];
+  for (const d of accuseDateKeys) {
+    if (uniqueDates.length === 0 || uniqueDates[uniqueDates.length - 1] !== d) {
+      uniqueDates.push(d);
+    }
+  }
+
+  const todayKey = getUTCDayKey(new Date());
+  const yesterdayDate = new Date();
+  yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
+  const yesterdayKey = getUTCDayKey(yesterdayDate);
+
+  if (uniqueDates[0] !== todayKey && uniqueDates[0] !== yesterdayKey) {
+    return 0;
+  }
+
+  let streak = 1;
+  for (let i = 1; i < uniqueDates.length; i++) {
+    const prev = new Date(uniqueDates[i - 1] + "T00:00:00Z");
+    const curr = new Date(uniqueDates[i] + "T00:00:00Z");
+    const diff = (prev.getTime() - curr.getTime()) / (24 * 60 * 60 * 1000);
+    if (diff === 1) streak++;
+    else break;
+  }
+  return streak;
+}
+
 // ---- Kela Anniversaries ----
 // Returns milestone info: "Bilal's 1st kela was 30 days ago!"
 export function getAnniversaries(

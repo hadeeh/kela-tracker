@@ -36,9 +36,11 @@ import { SoundManager } from "./sound-manager";
 import { MemberManager } from "./member-manager";
 import { KelaStats } from "./kela-stats";
 import { HallOfShame } from "./hall-of-shame";
-import { getBadge, getNextBadge, BADGE_TIERS, getAccuserBadge, ACCUSER_BADGES } from "@/lib/badges";
+import { getBadge, getNextBadge, BADGE_TIERS, getAccuserAchievements, ACCUSER_ACHIEVEMENTS } from "@/lib/badges";
 import { isInWalkOfShame, generateAccusedPersona, generateAccuserPersona } from "@/lib/kela-stats";
-import { getKelaStreak, getAnniversaries, getAllHeadToHead, getSeasonalTheme, sendNotification, requestNotificationPermission } from "@/lib/kela-extras";
+import { getKelaStreak, getAccuserStreak, getAnniversaries, getAllHeadToHead, getSeasonalTheme, sendNotification, requestNotificationPermission } from "@/lib/kela-extras";
+import { AccuserAchievements } from "./accuser-achievements";
+import { QuickAccusePicker } from "./quick-accuse-picker";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; status: string; joinedAt: string };
@@ -105,6 +107,12 @@ export function RoomView({ room, me }: Props) {
   // ---- Active vote modal (I'm a voter) ---------------------------------
   const [voteOpen, setVoteOpen] = useState(false);
   const [votedChoice, setVotedChoice] = useState<"kela" | "saeb" | null>(null);
+
+  // ---- Quick Accuse picker (FAB) ----
+  const [quickAccuseOpen, setQuickAccuseOpen] = useState(false);
+
+  // ---- Tab navigation ----
+  const [activeTab, setActiveTab] = useState<"dashboard" | "achievements" | "settings">("dashboard");
 
   // ---- Defense modal (I'm the accused — must defend before vote starts) ----
   const [defenseOpen, setDefenseOpen] = useState(false);
@@ -542,7 +550,7 @@ export function RoomView({ room, me }: Props) {
   const seasonalTheme = useMemo(() => getSeasonalTheme(), []);
   const myStreak = useMemo(() => getKelaStreak(me.memberId, incidents as any), [me.memberId, incidents]);
   const myAccusations = useMemo(() => incidents.filter((i) => i.accusedById === me.memberId).length, [incidents, me.memberId]);
-  const myAccuserBadge = useMemo(() => getAccuserBadge(myAccusations), [myAccusations]);
+  const myAccuserStreak = useMemo(() => getAccuserStreak(me.memberId, incidents as any), [me.memberId, incidents]);
   const anniversaries = useMemo(() => getAnniversaries(incidents as any, members.map((m) => ({ id: m.id, name: m.name }))), [incidents, members]);
   const headToHead = useMemo(() => getAllHeadToHead(members.map((m) => ({ id: m.id, name: m.name })), incidents as any), [members, incidents]);
 
@@ -616,12 +624,17 @@ export function RoomView({ room, me }: Props) {
                       <span className="text-green-700"> · {mySettledCount} settled ✓</span>
                     )}
                     {myStreak >= 2 && (
-                      <span className="text-orange-600 font-semibold"> · 🔥 {myStreak}-day streak!</span>
+                      <span className="text-orange-600 font-semibold"> · 🔥 {myStreak}-day kela streak!</span>
+                    )}
+                    {myAccuserStreak >= 2 && (
+                      <span className="text-green-600 font-semibold"> · 🏹 {myAccuserStreak}-day accuse streak!</span>
                     )}
                   </div>
-                  {/* My badges: eater badge + accuser badge */}
+                  {/* My badges: eater badge + accuser achievement */}
                   {(() => {
                     const badge = getBadge(myGuiltyCount);
+                    const accuserAchievements = getAccuserAchievements(myAccusations);
+                    const currentAccuser = [...accuserAchievements].reverse().find((a) => a.unlocked);
                     return (
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
                         {badge ? (
@@ -633,9 +646,9 @@ export function RoomView({ room, me }: Props) {
                             No eater badge yet
                           </span>
                         )}
-                        {myAccuserBadge && (
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${myAccuserBadge.color} bg-white`}>
-                            {myAccuserBadge.emoji} {myAccuserBadge.title}
+                        {currentAccuser && (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${currentAccuser.color} bg-white`}>
+                            {currentAccuser.sticker} {currentAccuser.title}
                           </span>
                         )}
                       </div>
@@ -871,11 +884,11 @@ export function RoomView({ room, me }: Props) {
             <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground pt-4 pb-2">🏹 Accuser Achievements</div>
             <p className="text-xs text-muted-foreground -mt-1 mb-2">Earned by accusing others — the more you accuse, the higher your rank!</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {ACCUSER_BADGES.map((badge) => (
-                <div key={badge.minAccusations} className={`flex items-center gap-3 rounded-lg border p-3 ${badge.color}`}>
-                  <div className="text-3xl flex-shrink-0">{badge.emoji}</div>
+              {ACCUSER_ACHIEVEMENTS.map((badge) => (
+                <div key={badge.id} className={`flex items-center gap-3 rounded-lg border p-3 ${badge.color}`}>
+                  <div className="text-3xl flex-shrink-0">{badge.sticker}</div>
                   <div className="min-w-0">
-                    <div className="font-bold text-sm">{badge.title}</div>
+                    <div className="font-bold text-sm">{badge.emoji} {badge.title}</div>
                     <div className="text-xs opacity-80">{badge.minAccusations}+ accusations</div>
                     <div className="text-[11px] opacity-70 truncate">{badge.description}</div>
                   </div>
@@ -885,12 +898,15 @@ export function RoomView({ room, me }: Props) {
           </CardContent>
         </Card>
 
-        {/* Kela Stats: Persona, Most Wanted, Triggers, Trends, Calendar */}
+        {/* Kela Stats: Most Wanted, Triggers, Trends, Calendar */}
         <KelaStats
           memberId={me.memberId}
           members={members.filter((m) => m.status === "approved").map((m) => ({ id: m.id, name: m.name }))}
           incidents={incidents as any}
         />
+
+        {/* Accuser Achievements (PUBG-style sticker unlocks) */}
+        <AccuserAchievements accusationCount={myAccusations} />
 
         {/* Hall of Shame: Mugshots */}
         <HallOfShame
@@ -1412,21 +1428,24 @@ export function RoomView({ room, me }: Props) {
 
       {/* Floating Action Button — quick accuse (visible on all views) */}
       <button
-        onClick={() => {
-          const approvedMembers = members.filter((m) => m.id !== me.memberId && m.status === "approved" && m.name !== "Removed User");
-          if (approvedMembers.length === 0) {
-            toast.error("No friends to accuse yet! Invite someone first.");
-            return;
-          }
-          // Pick the first member and open the accuse dialog
-          setAccuseTarget(approvedMembers[0]);
-          setAccuseReason("");
-        }}
+        onClick={() => setQuickAccuseOpen(true)}
         className="fixed bottom-4 right-4 z-50 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 font-bold rounded-full h-14 w-14 sm:h-16 sm:w-16 shadow-lg flex items-center justify-center text-2xl sm:text-3xl transition-transform hover:scale-110 active:scale-95"
         title="Quick Accuse"
       >
         🍌
       </button>
+
+      {/* Quick Accuse Picker — member selector */}
+      <QuickAccusePicker
+        open={quickAccuseOpen}
+        members={members.filter((m) => m.id !== me.memberId && m.status === "approved" && m.name !== "Removed User").map((m) => ({ id: m.id, name: m.name }))}
+        onSelect={(m) => {
+          setAccuseTarget(m);
+          setAccuseReason("");
+          setQuickAccuseOpen(false);
+        }}
+        onClose={() => setQuickAccuseOpen(false)}
+      />
     </div>
   );
 }

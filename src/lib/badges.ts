@@ -96,29 +96,39 @@ export function getNextBadge(kelaCount: number): BadgeTier | null {
   return next;
 }
 
-// ---- Accuser Achievements ----
-// Badges for the accuser (person who starts votes), based on total accusations made.
-export type AccuserBadge = {
+// ---- Accuser Achievements (PUBG-style sticker unlocks) ----
+// Visual achievements that unlock as you accuse more. Like PUBG ranks/stickers.
+export type AccuserAchievement = {
+  id: string;
   minAccusations: number;
   title: string;
   emoji: string;
+  sticker: string; // visual "sticker" — a combo of emojis
   color: string;
   description: string;
+  unlocked: boolean;
 };
 
-export const ACCUSER_BADGES: AccuserBadge[] = [
-  { minAccusations: 100, title: "Kela Godfather", emoji: "👑", color: "bg-purple-100 text-purple-800 border-purple-300", description: "100+ accusations — the ultimate kela instigator" },
-  { minAccusations: 50,  title: "Kela Sniper",   emoji: "🎯", color: "bg-cyan-100 text-cyan-800 border-cyan-300",    description: "50+ accusations — pinpoint accuracy" },
-  { minAccusations: 30,  title: "Kela Prosecutor",emoji: "⚖️", color: "bg-amber-100 text-amber-800 border-amber-300", description: "30+ accusations — always building a case" },
-  { minAccusations: 20,  title: "Kela Instigator",emoji: "🔥", color: "bg-red-100 text-red-800 border-red-300",       description: "20+ accusations — loves stirring the pot" },
-  { minAccusations: 10,  title: "Kela Hunter",    emoji: "🏹", color: "bg-orange-100 text-orange-800 border-orange-300", description: "10+ accusations — always on the hunt" },
-  { minAccusations: 5,   title: "Kela Watcher",   emoji: "👁️", color: "bg-green-100 text-green-800 border-green-300", description: "5+ accusations — keeping an eye out" },
-  { minAccusations: 1,   title: "Kela Rookie Accuser", emoji: "🔪", color: "bg-yellow-50 text-yellow-700 border-yellow-200", description: "First accusation — welcome to the hunt" },
+export const ACCUSER_ACHIEVEMENTS: Omit<AccuserAchievement, "unlocked">[] = [
+  { id: "first-blood",   minAccusations: 1,   title: "First Blood",        emoji: "🔪", sticker: "🗡️💥",  color: "bg-gray-100 text-gray-800 border-gray-300",      description: "Made your very first accusation. The hunt begins!" },
+  { id: "watchdog",      minAccusations: 5,   title: "The Watchdog",       emoji: "🐕", sticker: "👁️🐕",  color: "bg-green-100 text-green-800 border-green-300",    description: "5 accusations. You're keeping everyone honest." },
+  { id: "hunter",        minAccusations: 10,  title: "Kela Hunter",        emoji: "🏹", sticker: "🏹🎯",  color: "bg-orange-100 text-orange-800 border-orange-300", description: "10 accusations. You hunt kela eaters for sport." },
+  { id: "instigator",    minAccusations: 20,  title: "The Instigator",     emoji: "🔥", sticker: "🔥😏",  color: "bg-red-100 text-red-800 border-red-300",         description: "20 accusations. You love stirring the pot." },
+  { id: "prosecutor",    minAccusations: 30,  title: "The Prosecutor",     emoji: "⚖️", sticker: "⚖️🔨",  color: "bg-amber-100 text-amber-800 border-amber-300",   description: "30 accusations. You always build a solid case." },
+  { id: "sniper",        minAccusations: 50,  title: "Kela Sniper",        emoji: "🎯", sticker: "🎯💀",  color: "bg-cyan-100 text-cyan-800 border-cyan-300",     description: "50 accusations. Fear this person." },
+  { id: "godfather",     minAccusations: 100, title: "Kela Godfather",     emoji: "👑", sticker: "👑🍌",  color: "bg-purple-100 text-purple-800 border-purple-300", description: "100 accusations. The ultimate kela instigator." },
 ];
 
-export function getAccuserBadge(accusationCount: number): AccuserBadge | null {
-  for (const badge of ACCUSER_BADGES) {
-    if (accusationCount >= badge.minAccusations) return badge;
+export function getAccuserAchievements(accusationCount: number): AccuserAchievement[] {
+  return ACCUSER_ACHIEVEMENTS.map((a) => ({
+    ...a,
+    unlocked: accusationCount >= a.minAccusations,
+  }));
+}
+
+export function getNextAccuserAchievement(accusationCount: number): Omit<AccuserAchievement, "unlocked"> | null {
+  for (const a of ACCUSER_ACHIEVEMENTS) {
+    if (accusationCount < a.minAccusations) return a;
   }
   return null;
 }
