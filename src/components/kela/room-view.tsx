@@ -705,6 +705,29 @@ export function RoomView({ room, me }: Props) {
           );
         })()}
 
+        {/* Tab navigation — reduces scrolling, works on mobile + desktop */}
+        <div className="flex items-center gap-1 border-b pb-1 sticky top-[60px] z-30 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
+          {([
+            { id: "dashboard", emoji: "📊", label: "Dashboard" },
+            { id: "achievements", emoji: "🏆", label: "Achievements" },
+            { id: "settings", emoji: "⚙️", label: "Settings" },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 sm:px-4 py-1.5 rounded-t-lg text-xs sm:text-sm font-semibold transition ${
+                activeTab === tab.id ? "bg-yellow-400 text-yellow-950" : "text-muted-foreground hover:bg-yellow-100"
+              }`}
+            >
+              <span className="mr-1">{tab.emoji}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* ============ DASHBOARD TAB ============ */}
+        {activeTab === "dashboard" && (
+        <>
         {/* Pending Requests — only visible to the Kela Minister */}
         {isMinister && members.filter((m) => m.status === "pending").length > 0 && (
           <Card className="border-orange-300 bg-orange-50">
@@ -750,26 +773,8 @@ export function RoomView({ room, me }: Props) {
           </Card>
         )}
 
-        {/* Sound Manager — only visible to the Kela Minister */}
-        {isMinister && (
-          <SoundManager
-            roomCode={room.code}
-            memberId={me.memberId}
-            onSoundsChanged={() => {}}
-          />
-        )}
-
-        {/* Member Management — only visible to the Kela Minister */}
-        {isMinister && (
-          <MemberManager
-            roomCode={room.code}
-            memberId={me.memberId}
-            members={members}
-            onRateChanged={refreshData}
-          />
-        )}
-
-        {/* Kela Leaderboard */}
+        {/* Leaderboard, Friend Circle, Trials, etc. all in Dashboard tab */}
+        {/* Dashboard tab closes after Head-to-Head section below */}
         {members.length > 0 && (
           <Card>
             <CardHeader>
@@ -1280,6 +1285,29 @@ export function RoomView({ room, me }: Props) {
         <footer className="text-center text-[11px] sm:text-xs text-muted-foreground pb-4 pt-2">
           Made with 🍌 · Real-time voting · Sound on 🔊
         </footer>
+        </>
+        )}
+
+        {/* ============ SETTINGS TAB ============ */}
+        {activeTab === "settings" && (
+        <>
+          {/* Sound Manager (minister only) */}
+          {isMinister && (
+            <SoundManager roomCode={room.code} memberId={me.memberId} onSoundsChanged={() => {}} />
+          )}
+          {/* Member Management (minister only) */}
+          {isMinister && (
+            <MemberManager roomCode={room.code} memberId={me.memberId} members={members} onRateChanged={refreshData} />
+          )}
+          {/* PDF Export (minister only) */}
+          {isMinister && incidents.length > 0 && (
+            <Card><CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap"><div><div className="text-sm font-semibold">📄 Export Fine Ledger</div><div className="text-xs text-muted-foreground">Download all fines, payments, and balances</div></div><Button variant="outline" onClick={() => window.open(`/api/rooms/${room.code}/ledger-pdf?memberId=${me.memberId}`, "_blank")}>📄 Download Ledger</Button></CardContent></Card>
+          )}
+          {!isMinister && (
+            <Card><CardContent className="p-8 text-center text-muted-foreground"><div className="text-3xl mb-2">👤</div><p className="text-sm font-medium">You&apos;re a regular member.</p><p className="text-xs mt-1">Only the Kela Minister can manage settings.</p></CardContent></Card>
+          )}
+        </>
+        )}
       </div>
 
       {/* Invite dialog */}
