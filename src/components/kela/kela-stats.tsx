@@ -86,7 +86,7 @@ export function KelaStats({ memberId, members, incidents }: Props) {
           <CardTitle className="text-lg flex items-center gap-2">🔍 Kela Triggers</CardTitle>
           <CardDescription>Who accuses you most, and who you accuse most</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <div className="text-sm font-semibold mb-2">😤 Your Top Accusers</div>
             {triggers.topAccusers.length === 0 ? (

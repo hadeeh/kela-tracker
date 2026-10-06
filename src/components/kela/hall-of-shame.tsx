@@ -129,7 +129,7 @@ export function HallOfShame({ roomCode, memberId }: Props) {
             <p className="text-xs mt-1">Upload a funny photo when someone eats kela!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
             {mugshots.map((m) => (
               <div key={m.id} className="rounded-lg border overflow-hidden bg-card">
                 <div className="aspect-square bg-muted relative">

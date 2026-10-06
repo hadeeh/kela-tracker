@@ -522,39 +522,39 @@ export function RoomView({ room, me }: Props) {
           💀 WALK OF SHAME — You&apos;ve eaten 3+ kelas today! 💀
         </div>
       )}
-      <div className="container mx-auto max-w-6xl p-4 space-y-4">
+      <div className="container mx-auto max-w-5xl p-3 sm:p-4 space-y-3 sm:space-y-4">
         {/* Header */}
-        <header className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="text-4xl">🍌</div>
+        <header className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 pt-2 sticky top-0 z-40 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 pb-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="text-3xl sm:text-4xl flex-shrink-0">🍌</div>
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-yellow-950 truncate">{room.name}</h1>
-              <p className="text-xs text-muted-foreground">
-                Hi, {me.memberName}!{isMinister && <span className="text-yellow-700 font-semibold"> 👑 Kela Minister</span>} · Code: <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>
+              <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-yellow-950 truncate">{room.name}</h1>
+              <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                Hi, {me.memberName}{isMinister && <span className="text-yellow-700 font-semibold"> 👑</span>} · Code: <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {isMinister && (
-              <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)}>
-                <Mail className="h-4 w-4 mr-1" /> Invite
+              <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)} className="h-9 px-3">
+                <Mail className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Invite</span>
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={handleLeave}>
-              <LogOut className="h-4 w-4 mr-1" /> Leave
+            <Button variant="ghost" size="sm" onClick={handleLeave} className="h-9 px-3">
+              <LogOut className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Leave</span>
             </Button>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           {/* My fine summary */}
-          <Card className="md:col-span-2 bg-gradient-to-br from-yellow-300 to-amber-400 border-yellow-400 shadow-md">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-yellow-900/70">Your Total Fine Due</div>
-                  <div className="text-4xl font-bold text-yellow-950 mt-1">PKR {myFine.toLocaleString()}</div>
-                  <div className="text-sm text-yellow-900/80 mt-1">
+          <Card className="sm:col-span-2 bg-gradient-to-br from-yellow-300 to-amber-400 border-yellow-400 shadow-md">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-yellow-900/70">Your Total Fine Due</div>
+                  <div className="text-3xl sm:text-4xl font-bold text-yellow-950 mt-1">PKR {myFine.toLocaleString()}</div>
+                  <div className="text-xs sm:text-sm text-yellow-900/80 mt-1">
                     {myGuiltyCount} kela{myGuiltyCount === 1 ? "" : "s"} · PKR {myGrossFine.toLocaleString()} total
                     {myTotalPaid > 0 && (
                       <span> · PKR {myTotalPaid.toLocaleString()} paid</span>
@@ -587,16 +587,16 @@ export function RoomView({ room, me }: Props) {
                     );
                   })()}
                 </div>
-                <div className="text-7xl opacity-30">🍌</div>
+                <div className="text-5xl sm:text-7xl opacity-30 flex-shrink-0">🍌</div>
               </div>
             </CardContent>
           </Card>
 
           {/* Settings */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Your Rate</CardTitle>
-              <CardDescription className="text-xs">Fine charged per confirmed kela against you.</CardDescription>
+            <CardHeader className="pb-2 sm:pb-3">
+              <CardTitle className="text-sm sm:text-base">Your Rate</CardTitle>
+              <CardDescription className="text-[11px] sm:text-xs">Fine charged per confirmed kela against you.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center gap-2">
@@ -620,18 +620,18 @@ export function RoomView({ room, me }: Props) {
         {/* Share link banner — only minister sees this */}
         {isMinister && (
         <Card className="bg-yellow-50 border-yellow-200">
-          <CardContent className="p-4 flex flex-wrap items-center gap-3">
+          <CardContent className="p-3 sm:p-4 flex flex-wrap items-center gap-2 sm:gap-3">
             <Users className="h-5 w-5 text-yellow-700 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-yellow-900">Invite friends to this room</div>
-              <div className="text-xs text-yellow-800/80 truncate">{shareUrl}</div>
+              <div className="text-xs sm:text-sm font-semibold text-yellow-900">Invite friends to this room</div>
+              <div className="text-[10px] sm:text-xs text-yellow-800/80 truncate">{shareUrl}</div>
             </div>
-            <Button size="sm" variant="outline" onClick={copyInviteLink} className="bg-white">
-              {copied ? <Check className="h-4 w-4 mr-1 text-green-600" /> : <Copy className="h-4 w-4 mr-1" />}
-              {copied ? "Copied!" : "Copy Link"}
+            <Button size="sm" variant="outline" onClick={copyInviteLink} className="bg-white h-8">
+              {copied ? <Check className="h-3.5 w-3.5 sm:mr-1 text-green-600" /> : <Copy className="h-3.5 w-3.5 sm:mr-1" />}
+              <span className="hidden sm:inline">{copied ? "Copied!" : "Copy Link"}</span>
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setInviteOpen(true)} className="bg-white">
-              <Mail className="h-4 w-4 mr-1" /> Invite by Email
+            <Button size="sm" variant="outline" onClick={() => setInviteOpen(true)} className="bg-white h-8">
+              <Mail className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Invite by Email</span><span className="sm:hidden">Email</span>
             </Button>
           </CardContent>
         </Card>
@@ -786,7 +786,7 @@ export function RoomView({ room, me }: Props) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {BADGE_TIERS.map((tier) => (
                 <div
                   key={tier.minKelas}
@@ -855,7 +855,7 @@ export function RoomView({ room, me }: Props) {
                 <p className="text-sm mt-1">Invite friends by email or share the room code <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {members.filter((m) => m.id !== me.memberId && m.status === "approved").map((m) => {
                   const memberIncidents = incidents.filter((i) => i.user.id === m.id && i.verdict === "kela");
                   const guilty = memberIncidents.length;
@@ -880,7 +880,7 @@ export function RoomView({ room, me }: Props) {
                         </div>
                       </div>
                       {/* Per-person kela stats */}
-                      <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center">
                         <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-2">
                           <div className="text-lg font-bold text-yellow-900">{guilty}</div>
                           <div className="text-[10px] text-yellow-700 font-medium leading-tight">Kelas eaten</div>
@@ -1130,8 +1130,8 @@ export function RoomView({ room, me }: Props) {
           </CardContent>
         </Card>
 
-        <footer className="text-center text-xs text-muted-foreground pb-4 pt-2">
-          Made with 🍌 · Real-time Among Us-style voting · Sound on for the full experience 🔊
+        <footer className="text-center text-[11px] sm:text-xs text-muted-foreground pb-4 pt-2">
+          Made with 🍌 · Real-time voting · Sound on 🔊
         </footer>
       </div>
 
