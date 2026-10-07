@@ -11,6 +11,8 @@ type Props = {
   activeVote: ActiveVote | null;
   onVote: (choice: "kela" | "saeb") => void;
   votedChoice: "kela" | "saeb" | null;
+  isMinister?: boolean;
+  onSettle?: (action: "kela" | "saeb" | "tie" | "cancel") => void;
 };
 
 function useCountdown(endsAt: number | null) {
@@ -28,7 +30,7 @@ function useCountdown(endsAt: number | null) {
   return remaining;
 }
 
-export function VoteModal({ open, activeVote, onVote, votedChoice }: Props) {
+export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, onSettle }: Props) {
   const remaining = useCountdown(activeVote?.endsAt ?? null);
   const votesYes = activeVote?.votesYes ?? 0;
   const votesNo = activeVote?.votesNo ?? 0;
@@ -126,6 +128,20 @@ export function VoteModal({ open, activeVote, onVote, votedChoice }: Props) {
             <p className="text-center text-xs text-muted-foreground">
               The accused cannot vote. Vote closes automatically.
             </p>
+
+            {/* Minister settle controls */}
+            {isMinister && onSettle && activeVote && (
+              <div className="border-t pt-3 mt-2">
+                <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1.5 text-center">⚡ Minister Controls</div>
+                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                  <Button size="sm" variant="outline" className="h-7 text-[10px] bg-yellow-50" onClick={() => onSettle("kela")}>🍌 Force Kela</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-[10px] bg-red-50" onClick={() => onSettle("saeb")}>🍎 Force Saeb</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => onSettle("tie")}>🤷 Force Tie</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-[10px] text-red-600" onClick={() => onSettle("cancel")}>✕ Cancel Vote</Button>
+                </div>
+                <p className="text-[9px] text-muted-foreground text-center mt-1">Use if members are offline or to end early.</p>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>

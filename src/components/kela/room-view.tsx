@@ -509,6 +509,30 @@ export function RoomView({ room, me }: Props) {
     toast.success("🛡️ Defense submitted! Voters can see it now.");
   }
 
+  // Minister: force-settle an active vote
+  async function handleSettleVote(action: "kela" | "saeb" | "tie" | "cancel") {
+    if (!activeVote) return;
+    const confirmMsg = action === "cancel"
+      ? "Cancel this vote? No verdict will be recorded — no fine."
+      : `Force verdict: ${action.toUpperCase()}? This overrides the vote.`;
+    if (!confirm(confirmMsg)) return;
+    try {
+      const res = await fetch(`/api/rooms/${room.code}/votes/settle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: me.memberId, action }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || "Failed to settle.");
+        return;
+      }
+      toast.success(action === "cancel" ? "Vote cancelled." : `Vote settled: ${action.toUpperCase()}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to settle.");
+    }
+  }
+
   // Request notification permission on mount
   useEffect(() => {
     requestNotificationPermission();
@@ -1231,6 +1255,43 @@ export function RoomView({ room, me }: Props) {
         {/* ============ ACHIEVEMENTS TAB ============ */}
         {activeTab === "achievements" && (
         <>
+          {/* Your unlocked badges */}
+          <Card className="border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">🎖️ Your Unlocked Badges</CardTitle>
+              <CardDescription className="text-xs">Badges you've earned so far</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3 flex-wrap">
+                {(() => {
+                  const eaterBadge = getBadge(myGuiltyCount);
+                  const accuserAchievements = getAccuserAchievements(myAccusations);
+                  const unlockedAccuser = accuserAchievements.filter((a) => a.unlocked);
+                  const hasAny = eaterBadge || unlockedAccuser.length > 0;
+                  if (!hasAny) {
+                    return <div className="text-sm text-muted-foreground">No badges yet. Start eating kela or accusing friends to earn badges! 🍌</div>;
+                  }
+                  return (
+                    <>
+                      {eaterBadge && (
+                        <div className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${eaterBadge.color}`}>
+                          <span className="text-lg">{eaterBadge.emoji}</span>
+                          <span>{eaterBadge.title}</span>
+                        </div>
+                      )}
+                      {unlockedAccuser.map((a) => (
+                        <div key={a.id} className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${a.color}`}>
+                          <span className="text-lg">{a.sticker}</span>
+                          <span>{a.emoji} {a.title}</span>
+                        </div>
+                      ))}
+                    </>
+                  );
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Kela Stats: Most Wanted, Triggers, Trends, Calendar */}
           <KelaStats
             memberId={me.memberId}
@@ -1437,6 +1498,8 @@ export function RoomView({ room, me }: Props) {
         activeVote={activeVote}
         onVote={handleCastVote}
         votedChoice={votedChoice}
+        isMinister={isMinister}
+        onSettle={handleSettleVote}
       />
 
       {/* Accused modal (I'm the accused — can add defense during voting) */}
