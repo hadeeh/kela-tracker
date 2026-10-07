@@ -685,22 +685,40 @@ export function RoomView({ room, me }: Props) {
           </Card>
         </div>
 
-        {/* Persona text at top — accused (shame) + accuser (achievement) */}
+        {/* Persona text at top — show shame OR glory based on behavior */}
         {(() => {
           const accusedPersona = generateAccusedPersona(me.memberId, incidents as any);
           const accuserPersona = generateAccuserPersona(me.memberId, incidents as any);
+          const myGuilty = incidents.filter((i) => i.userId === me.memberId && i.verdict === "kela").length;
+          const myAccusations = incidents.filter((i) => i.accusedById === me.memberId).length;
+
+          // Show shame only if they've eaten kela (guilty >= 1)
+          // Show glory only if they've accused someone (accusations >= 1)
+          // If neither, show the innocent bystander
+          if (myGuilty === 0 && myAccusations === 0) {
+            return (
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm px-1">
+                <span className="text-base">😇</span>
+                <span className="text-muted-foreground"><b>The Innocent Bystander</b> — Hasn&apos;t eaten kela or accused anyone. Suspiciously clean.</span>
+              </div>
+            );
+          }
           return (
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm px-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-base">{accusedPersona.emoji}</span>
-                <span className="text-red-700"><b>Shame:</b> {accusedPersona.title}</span>
-                <span className="text-muted-foreground hidden sm:inline">— {accusedPersona.description}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-base">{accuserPersona.emoji}</span>
-                <span className="text-green-700"><b>Glory:</b> {accuserPersona.title}</span>
-                <span className="text-muted-foreground hidden sm:inline">— {accuserPersona.description}</span>
-              </div>
+              {myGuilty > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base">{accusedPersona.emoji}</span>
+                  <span className="text-red-700"><b>Shame:</b> {accusedPersona.title}</span>
+                  <span className="text-muted-foreground hidden sm:inline">— {accusedPersona.description}</span>
+                </div>
+              )}
+              {myAccusations > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base">{accuserPersona.emoji}</span>
+                  <span className="text-green-700"><b>Glory:</b> {accuserPersona.title}</span>
+                  <span className="text-muted-foreground hidden sm:inline">— {accuserPersona.description}</span>
+                </div>
+              )}
             </div>
           );
         })()}
@@ -1221,7 +1239,12 @@ export function RoomView({ room, me }: Props) {
           />
 
           {/* Accuser Achievements (PUBG-style sticker unlocks) */}
-          <AccuserAchievements accusationCount={myAccusations} />
+          <AccuserAchievements
+            accusationCount={myAccusations}
+            roomCode={room.code}
+            memberId={me.memberId}
+            isMinister={isMinister}
+          />
 
           {/* Hall of Shame & Memories */}
           <HallOfShame
