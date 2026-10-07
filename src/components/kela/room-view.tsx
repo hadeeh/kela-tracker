@@ -654,6 +654,15 @@ export function RoomView({ room, me }: Props) {
                       <span className="text-green-600 font-semibold"> · 🏹 {myAccuserStreak}-day accuse streak!</span>
                     )}
                   </div>
+                  {/* Level display */}
+                  <div className="mt-1.5 flex items-center gap-3 text-[11px] sm:text-xs">
+                    <span className="text-red-700">
+                      🍌 Eater Level: <b>{(() => { const b = getBadge(myGuiltyCount); return b ? `${b.tier} (${myGuiltyCount})` : `None (0)`; })()}</b>
+                    </span>
+                    <span className="text-green-700">
+                      🏹 Accuser Level: <b>{(() => { const a = getAccuserAchievements(myAccusations); const u = [...a].reverse().find((x) => x.unlocked); return u ? `${u.title} (${myAccusations})` : `None (0)`; })()}</b>
+                    </span>
+                  </div>
                   {/* My badges: eater badge + accuser achievement */}
                   {(() => {
                     const badge = getBadge(myGuiltyCount);
@@ -1305,6 +1314,7 @@ export function RoomView({ room, me }: Props) {
             roomCode={room.code}
             memberId={me.memberId}
             isMinister={isMinister}
+            memberName={me.memberName}
           />
 
           {/* Hall of Shame & Memories */}

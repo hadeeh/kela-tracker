@@ -13,11 +13,12 @@ type Props = {
   roomCode: string;
   memberId: string;
   isMinister: boolean;
+  memberName: string;
 };
 
 type RewardData = Record<string, { stickerUrl: string | null; soundUrl: string | null }>;
 
-export function AccuserAchievements({ accusationCount, roomCode, memberId, isMinister }: Props) {
+export function AccuserAchievements({ accusationCount, roomCode, memberId, isMinister, memberName }: Props) {
   const [rewards, setRewards] = useState<RewardData>({});
   const [uploading, setUploading] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -102,6 +103,29 @@ export function AccuserAchievements({ accusationCount, roomCode, memberId, isMin
     audio.play().catch(() => {});
   }
 
+  async function broadcastAchievement(achievementId: string, type: "sticker" | "sound") {
+    try {
+      const res = await fetch(`/api/rooms/${roomCode}/broadcast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId, achievementId, type }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || "Broadcast failed.");
+        return;
+      }
+      // Play locally
+      if (type === "sound" && data.broadcast?.soundUrl) {
+        const audio = new Audio(`${data.broadcast.soundUrl}?t=${Date.now()}`);
+        audio.play().catch(() => {});
+      }
+      toast.success(`${type === "sticker" ? "🖼️ Sticker" : "🎵 Sound"} broadcast to all room members!`);
+    } catch (e: any) {
+      toast.error(e?.message || "Broadcast failed.");
+    }
+  }
+
   return (
     <Card className="border-green-200">
       <CardHeader className="pb-2">
@@ -159,11 +183,28 @@ export function AccuserAchievements({ accusationCount, roomCode, memberId, isMin
                 <div className={`text-xs font-bold ${a.unlocked ? "" : "text-muted-foreground"}`}>{a.title}</div>
                 <div className="text-[10px] opacity-70 mt-0.5">{a.minAccusations}+ acc</div>
 
-                {/* Play sound button (if sound uploaded + unlocked) */}
-                {a.unlocked && reward.soundUrl && (
-                  <button onClick={() => playSound(a.id)} className="mt-1 text-[10px] text-blue-600 hover:text-blue-700 flex items-center justify-center gap-0.5 w-full">
-                    <Play className="h-2.5 w-2.5" /> Sound
-                  </button>
+                {/* Broadcast buttons (if unlocked + has custom sticker/sound) */}
+                {a.unlocked && (reward.stickerUrl || reward.soundUrl) && (
+                  <div className="mt-1 flex items-center justify-center gap-1">
+                    {reward.stickerUrl && (
+                      <button
+                        onClick={() => broadcastAchievement(a.id, "sticker")}
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200 border border-green-300"
+                        title="Broadcast sticker to everyone"
+                      >
+                        📢 Show
+                      </button>
+                    )}
+                    {reward.soundUrl && (
+                      <button
+                        onClick={() => broadcastAchievement(a.id, "sound")}
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300"
+                        title="Play sound on all devices"
+                      >
+                        📢 Play
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {/* Minister upload controls */}
@@ -232,7 +273,7 @@ export function AccuserAchievements({ accusationCount, roomCode, memberId, isMin
 
         {isMinister && (
           <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-2 text-[10px] text-yellow-800">
-            💡 Upload custom stickers/gifs (🖼️) and sounds (🎵) for each achievement. Members only see/hear them when they unlock the achievement — like PUBG!
+            💡 Upload custom stickers/gifs (🖼️) and sounds (🎵) for each achievement. Unlocked members can tap their sticker to broadcast it to everyone!
           </div>
         )}
       </CardContent>
