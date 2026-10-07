@@ -41,6 +41,7 @@ import { isInWalkOfShame, generateAccusedPersona, generateAccuserPersona } from 
 import { getKelaStreak, getAccuserStreak, getAnniversaries, getAllHeadToHead, getSeasonalTheme, sendNotification, requestNotificationPermission } from "@/lib/kela-extras";
 import { AccuserAchievements } from "./accuser-achievements";
 import { QuickAccusePicker } from "./quick-accuse-picker";
+import { SoundBar } from "./sound-bar";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; status: string; joinedAt: string };
@@ -823,6 +824,9 @@ export function RoomView({ room, me }: Props) {
             </CardContent>
           </Card>
         )}
+
+        {/* Sound Bar (Discord-style — everyone hears/sees broadcasts) */}
+        <SoundBar roomCode={room.code} memberId={me.memberId} memberName={me.memberName} />
 
         {/* Leaderboard, Friend Circle, Trials, etc. all in Dashboard tab */}
         {/* Dashboard tab closes after Head-to-Head section below */}

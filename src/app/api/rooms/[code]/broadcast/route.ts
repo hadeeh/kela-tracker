@@ -39,11 +39,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       return NextResponse.json({ error: "No sound uploaded for this achievement." }, { status: 400 });
     }
 
-    // Return the broadcast info — clients pick this up via polling on active-vote endpoint
-    // We store it temporarily by updating the room's updatedAt (hacky but works for polling)
-    // Actually, we'll use a simple approach: return the broadcast data with a timestamp
-    // The client will store it in localStorage and show it for 5 seconds
+    // Store broadcast info — we'll use a simple approach: return the data
+    // The SoundBar component polls this endpoint and picks up new broadcasts
     const broadcastTs = Date.now();
+
+    // Update the reward's updatedAt so polling picks it up
+    await db.achievementReward.update({
+      where: { roomId_achievementId: { roomId: room.id, achievementId } },
+      data: { updatedAt: new Date(broadcastTs) },
+    });
 
     return NextResponse.json({
       ok: true,
@@ -87,9 +91,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     }
 
     const reward = recentRewards[0];
+    // We don't store who broadcasted in the reward table, so we can't return the name here.
+    // The POST response includes the name. For polling, we'll just return the URLs.
     return NextResponse.json({
       broadcast: {
         achievementId: reward.achievementId,
+        memberName: "Someone",
         stickerUrl: reward.stickerData ? `/api/rooms/${room.code}/achievements/${reward.achievementId}/sticker` : null,
         soundUrl: reward.soundData ? `/api/rooms/${room.code}/achievements/${reward.achievementId}/sound` : null,
         timestamp: reward.updatedAt.getTime(),
