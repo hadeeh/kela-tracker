@@ -1210,6 +1210,28 @@ export function RoomView({ room, me }: Props) {
         </>
         )}
 
+        {/* ============ ACHIEVEMENTS TAB ============ */}
+        {activeTab === "achievements" && (
+        <>
+          {/* Kela Stats: Most Wanted, Triggers, Trends, Calendar */}
+          <KelaStats
+            memberId={me.memberId}
+            members={members.filter((m) => m.status === "approved").map((m) => ({ id: m.id, name: m.name }))}
+            incidents={incidents as any}
+          />
+
+          {/* Accuser Achievements (PUBG-style sticker unlocks) */}
+          <AccuserAchievements accusationCount={myAccusations} />
+
+          {/* Hall of Shame & Memories */}
+          <HallOfShame
+            roomCode={room.code}
+            memberId={me.memberId}
+            members={members.filter((m) => m.status === "approved").map((m) => ({ id: m.id, name: m.name }))}
+          />
+        </>
+        )}
+
         {/* ============ SETTINGS TAB ============ */}
         {activeTab === "settings" && (
         <>
