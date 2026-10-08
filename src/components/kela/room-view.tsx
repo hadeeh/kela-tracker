@@ -981,6 +981,9 @@ export function RoomView({ room, me }: Props) {
                   const grossFine = memberIncidents.reduce((sum, i) => sum + (i.rateAtTime || i.user.ratePerKela), 0);
                   const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
                   const totalFine = Math.max(0, grossFine - totalPaid);
+                  const memberAccusedPersona = generateAccusedPersona(m.id, incidents as any);
+                  const memberAccuserPersona = generateAccuserPersona(m.id, incidents as any);
+                  const memberAccusations = incidents.filter((i) => i.accusedById === m.id && i.verdict === "kela").length;
                   return (
                     <div key={m.id} className="rounded-xl border bg-card p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3 overflow-hidden">
                       <div className="flex items-center gap-3">
@@ -997,6 +1000,17 @@ export function RoomView({ room, me }: Props) {
                           </div>
                         </div>
                       </div>
+                      {/* Persona titles (Shame + Glory) */}
+                      {(guilty > 0 || memberAccusations > 0) && (
+                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] sm:text-xs px-1">
+                          {guilty > 0 && (
+                            <span className="text-red-700">{memberAccusedPersona.emoji} {memberAccusedPersona.title}</span>
+                          )}
+                          {memberAccusations > 0 && (
+                            <span className="text-green-700">{memberAccuserPersona.emoji} {memberAccuserPersona.title}</span>
+                          )}
+                        </div>
+                      )}
                       {/* Per-person kela stats */}
                       <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center">
                         <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-2">
@@ -1054,9 +1068,20 @@ export function RoomView({ room, me }: Props) {
                       </div>
                       {(() => {
                         const badge = getBadge(guilty);
-                        return badge ? (
-                          <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-full border text-xs font-bold ${badge.color}`}>
-                            {badge.emoji} {badge.title}
+                        const accuserAch = getAccuserAchievements(memberAccusations);
+                        const currentAccuser = [...accuserAch].reverse().find((a) => a.unlocked);
+                        return (badge || currentAccuser) ? (
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            {badge && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${badge.color}`}>
+                                {badge.emoji} {badge.title}
+                              </span>
+                            )}
+                            {currentAccuser && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${currentAccuser.color}`}>
+                                {currentAccuser.emoji} {currentAccuser.title}
+                              </span>
+                            )}
                           </div>
                         ) : null;
                       })()}
