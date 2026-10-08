@@ -664,10 +664,8 @@ export function RoomView({ room, me }: Props) {
 
       {/* Main content (scrolls under sticky header) */}
       <div className="container mx-auto max-w-5xl p-3 sm:p-4 space-y-3 sm:space-y-4">
-        {/* Persona text at top */}
-
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          {/* My fine summary */}
+          {/* My fine summary + persona + rate (all in one card) */}
           <Card className="sm:col-span-2 bg-gradient-to-br from-yellow-300 to-amber-400 border-yellow-400 shadow-md overflow-hidden">
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between gap-3">
@@ -682,16 +680,52 @@ export function RoomView({ room, me }: Props) {
                     {myStreak >= 2 && <span className="text-orange-600 font-semibold">🔥 {myStreak}-day streak!</span>}
                     {myAccuserStreak >= 2 && <span className="text-green-600 font-semibold">🏹 {myAccuserStreak}-day accuse!</span>}
                   </div>
+                  {/* Rate — inline, minister can edit, others see read-only */}
+                  <div className="mt-1.5 flex items-center gap-2 text-[11px] sm:text-xs">
+                    <span className="text-yellow-900/70 font-medium">Rate:</span>
+                    {isMinister ? (
+                      <>
+                        <span className="text-yellow-900/70">PKR</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={5}
+                          value={rateInput}
+                          onChange={(e) => setRateInput(e.target.value)}
+                          className="w-16 px-1.5 py-0.5 rounded border border-yellow-300 bg-white/80 text-yellow-950 font-bold text-xs"
+                        />
+                        <button onClick={saveRate} disabled={savingRate} className="text-yellow-900 font-bold hover:underline disabled:opacity-50">
+                          {savingRate ? "..." : "Save"}
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-yellow-950 font-bold">PKR {myRate}/kela</span>
+                    )}
+                  </div>
+                  {/* Persona (shame/glory or innocent bystander) */}
+                  <div className="mt-2">
+                    {(() => {
+                      const accusedPersona = generateAccusedPersona(me.memberId, incidents as any);
+                      const accuserPersona = generateAccuserPersona(me.memberId, incidents as any);
+                      const myGuilty = incidents.filter((i) => i.userId === me.memberId && i.verdict === "kela").length;
+                      const myAcc = incidents.filter((i) => i.accusedById === me.memberId && i.verdict === "kela").length;
+                      if (myGuilty === 0 && myAcc === 0) {
+                        return <span className="text-[11px] sm:text-xs text-yellow-900/70">😇 <b>The Innocent Bystander</b> — Hasn&apos;t eaten kela or accused anyone. Suspiciously clean.</span>;
+                      }
+                      return (
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] sm:text-xs">
+                          {myGuilty > 0 && <span className="text-red-800">{accusedPersona.emoji} <b>Shame:</b> {accusedPersona.title}</span>}
+                          {myAcc > 0 && <span className="text-green-800">{accuserPersona.emoji} <b>Glory:</b> {accuserPersona.title}</span>}
+                        </div>
+                      );
+                    })()}
+                  </div>
                   {/* Level display */}
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] sm:text-xs">
-                    <span className="text-red-700">
-                      🍌 Eater: <b>{(() => { const b = getBadge(myGuiltyCount); return b ? `${b.tier} (${myGuiltyCount})` : `None (0)`; })()}</b>
-                    </span>
-                    <span className="text-green-700">
-                      🏹 Accuser: <b>{(() => { const a = getAccuserAchievements(myConfirmedAccusations); const u = [...a].reverse().find((x) => x.unlocked); return u ? `${u.title} (${myConfirmedAccusations})` : `None (0)`; })()}</b>
-                    </span>
+                    <span className="text-red-700">🍌 Eater: <b>{(() => { const b = getBadge(myGuiltyCount); return b ? `${b.tier} (${myGuiltyCount})` : `None (0)`; })()}</b></span>
+                    <span className="text-green-700">🏹 Accuser: <b>{(() => { const a = getAccuserAchievements(myConfirmedAccusations); const u = [...a].reverse().find((x) => x.unlocked); return u ? `${u.title} (${myConfirmedAccusations})` : `None (0)`; })()}</b></span>
                   </div>
-                  {/* My badges: eater badge + accuser achievement */}
+                  {/* My badges */}
                   {(() => {
                     const badge = getBadge(myGuiltyCount);
                     const accuserAchievements = getAccuserAchievements(myConfirmedAccusations);
@@ -699,18 +733,12 @@ export function RoomView({ room, me }: Props) {
                     return (
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
                         {badge ? (
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${badge.color} bg-white`}>
-                            🍌 {badge.emoji} {badge.title}
-                          </span>
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${badge.color} bg-white`}>🍌 {badge.emoji} {badge.title}</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">
-                            No eater badge yet
-                          </span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">No eater badge yet</span>
                         )}
                         {currentAccuser && (
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${currentAccuser.color} bg-white`}>
-                            {currentAccuser.sticker} {currentAccuser.title}
-                          </span>
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${currentAccuser.color} bg-white`}>{currentAccuser.sticker} {currentAccuser.title}</span>
                         )}
                       </div>
                     );
@@ -721,78 +749,26 @@ export function RoomView({ room, me }: Props) {
             </CardContent>
           </Card>
 
-          {/* Rate display — read only for non-ministers, editable for minister */}
-          <Card>
-            <CardHeader className="pb-2 sm:pb-3">
-              <CardTitle className="text-sm sm:text-base">Your Rate</CardTitle>
-              <CardDescription className="text-[11px] sm:text-xs">
-                {isMinister ? "Set your fine per kela." : "Only the Kela Minister can change your rate."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {isMinister ? (
+          {/* Minister-only: quick rate management (replaces old Your Rate card) */}
+          {isMinister && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Quick Rate Edit</CardTitle>
+                <CardDescription className="text-[11px]">Change your own rate per kela.</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-muted-foreground">PKR</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={5}
-                    value={rateInput}
-                    onChange={(e) => setRateInput(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button size="sm" onClick={saveRate} disabled={savingRate}>
-                    {savingRate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                  </Button>
+                  <Input type="number" min={0} step={5} value={rateInput} onChange={(e) => setRateInput(e.target.value)} className="flex-1" />
+                  <Button size="sm" onClick={saveRate} disabled={savingRate}>{savingRate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}</Button>
                 </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-muted-foreground">PKR</span>
-                  <span className="text-lg font-bold">{myRate}</span>
-                  <span className="text-xs text-muted-foreground">per kela</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                <p className="text-[10px] text-muted-foreground mt-2">To change other members' rates, go to Settings → Member Management.</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
-        {/* Persona text at top — show shame OR glory based on behavior */}
-        {(() => {
-          const accusedPersona = generateAccusedPersona(me.memberId, incidents as any);
-          const accuserPersona = generateAccuserPersona(me.memberId, incidents as any);
-          const myGuilty = incidents.filter((i) => i.userId === me.memberId && i.verdict === "kela").length;
-          const myConfirmedAccusations = incidents.filter((i) => i.accusedById === me.memberId && i.verdict === "kela").length;
-
-          // Show shame only if they've eaten kela (guilty >= 1)
-          // Show glory only if they've accused someone (accusations >= 1)
-          // If neither, show the innocent bystander
-          if (myGuilty === 0 && myConfirmedAccusations === 0) {
-            return (
-              <div className="flex items-center gap-1.5 text-xs sm:text-sm px-1">
-                <span className="text-base">😇</span>
-                <span className="text-muted-foreground"><b>The Innocent Bystander</b> — Hasn&apos;t eaten kela or accused anyone. Suspiciously clean.</span>
-              </div>
-            );
-          }
-          return (
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-[11px] sm:text-sm px-1 overflow-hidden">
-              {myGuilty > 0 && (
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-base flex-shrink-0">{accusedPersona.emoji}</span>
-                  <span className="text-red-700 truncate"><b>Shame:</b> {accusedPersona.title}</span>
-                  <span className="text-muted-foreground hidden md:inline truncate">— {accusedPersona.description}</span>
-                </div>
-              )}
-              {myConfirmedAccusations > 0 && (
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-base flex-shrink-0">{accuserPersona.emoji}</span>
-                  <span className="text-green-700 truncate"><b>Glory:</b> {accuserPersona.title}</span>
-                  <span className="text-muted-foreground hidden md:inline truncate">— {accuserPersona.description}</span>
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        {/* Persona is now inside the Total Fine Due card above */}
 
         {/* ============ DASHBOARD TAB ============ */}
         {activeTab === "dashboard" && (
