@@ -3,8 +3,12 @@ import { db } from "@/lib/db";
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
 const VALID_ACHIEVEMENT_IDS = [
+  // Accuser achievements
   "first-blood", "watchdog", "hunter", "instigator",
   "prosecutor", "sniper", "godfather",
+  // Eater badge sounds
+  "badge-rookie", "badge-starter", "badge-bronze", "badge-silver",
+  "badge-gold", "badge-platinum", "badge-diamond",
 ];
 
 // GET /api/rooms/[code]/achievements — list all achievement rewards

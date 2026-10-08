@@ -96,7 +96,32 @@ export function getNextBadge(kelaCount: number): BadgeTier | null {
   return next;
 }
 
-// ---- Accuser Achievements (PUBG-style sticker unlocks) ----
+// ---- Eater Badge Rewards (minister uploads sounds for eater badges) ----
+export type EaterBadgeReward = {
+  id: string;           // matches soundName: "badge-bronze", "badge-silver", etc.
+  minKelas: number;
+  title: string;
+  emoji: string;
+  color: string;
+  description: string;
+};
+
+export const EATER_BADGE_REWARDS: EaterBadgeReward[] = [
+  { id: "badge-rookie",   minKelas: 1,   title: "Kela Eater",     emoji: "🍌", color: "bg-yellow-50 text-yellow-700 border-yellow-200",  description: "First kela eaten" },
+  { id: "badge-starter",  minKelas: 5,   title: "Kela Regular",   emoji: "🍌", color: "bg-yellow-100 text-yellow-800 border-yellow-300", description: "5+ kelas eaten" },
+  { id: "badge-bronze",   minKelas: 10,  title: "Kela Boss",      emoji: "🥉", color: "bg-orange-100 text-orange-800 border-orange-300", description: "10+ kelas eaten" },
+  { id: "badge-silver",   minKelas: 20,  title: "Kela Sultan",    emoji: "🥈", color: "bg-gray-100 text-gray-800 border-gray-300", description: "20+ kelas eaten" },
+  { id: "badge-gold",     minKelas: 30,  title: "Kela Emperor",   emoji: "🥇", color: "bg-amber-100 text-amber-800 border-amber-300", description: "30+ kelas eaten" },
+  { id: "badge-platinum", minKelas: 50,  title: "Kela Legend",    emoji: "💎", color: "bg-cyan-100 text-cyan-800 border-cyan-300", description: "50+ kelas eaten" },
+  { id: "badge-diamond",  minKelas: 100, title: "Kela Godfather", emoji: "👑", color: "bg-purple-100 text-purple-800 border-purple-300", description: "100+ kelas eaten" },
+];
+
+export function getEaterBadgeReward(kelaCount: number): EaterBadgeReward | null {
+  for (const reward of EATER_BADGE_REWARDS) {
+    if (kelaCount >= reward.minKelas) return reward;
+  }
+  return null;
+}
 // Visual achievements that unlock as you accuse more. Like PUBG ranks/stickers.
 export type AccuserAchievement = {
   id: string;

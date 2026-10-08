@@ -42,6 +42,7 @@ import { getKelaStreak, getAccuserStreak, getAnniversaries, getAllHeadToHead, ge
 import { AccuserAchievements } from "./accuser-achievements";
 import { QuickAccusePicker } from "./quick-accuse-picker";
 import { SoundBar } from "./sound-bar";
+import { EaterBadgeSounds } from "./eater-badge-sounds";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; status: string; joinedAt: string };
@@ -1326,6 +1327,14 @@ export function RoomView({ room, me }: Props) {
             memberId={me.memberId}
             members={members.filter((m) => m.status === "approved").map((m) => ({ id: m.id, name: m.name }))}
             incidents={incidents as any}
+          />
+
+          {/* Eater Badge Sounds (minister uploads, users play/broadcast) */}
+          <EaterBadgeSounds
+            roomCode={room.code}
+            memberId={me.memberId}
+            isMinister={isMinister}
+            kelaCount={myGuiltyCount}
           />
 
           {/* Accuser Achievements (PUBG-style sticker unlocks) */}
