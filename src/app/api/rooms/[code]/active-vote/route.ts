@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const VOTE_DURATION_MS = 30_000;
+const VOTE_DURATION_MS = 30_000; // kept for display only — no auto-close
 
 // GET /api/rooms/[code]/active-vote?memberId=xxx
 // Returns the current active vote (if any) + the most recently ended vote.
+// Votes stay open until: all eligible voters voted, OR minister settles.
+// NO auto-close on timeout.
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
@@ -28,7 +30,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     if (pending) {
       const now = Date.now();
       const startedAt = pending.createdAt.getTime();
-      const endsAt = startedAt + VOTE_DURATION_MS;
+      const endsAt = startedAt + VOTE_DURATION_MS; // for display only
 
       // Count eligible voters (all members except the accused)
       const totalMembers = await db.roomMember.count({
@@ -37,11 +39,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       const eligibleVoters = Math.max(0, totalMembers - 1);
       const votedCount = pending.votes.length;
 
-      const timedOut = now >= endsAt;
+      // ONLY auto-close when ALL eligible voters have voted
+      // NO timeout auto-close — minister must settle if members are offline
       const allVoted = eligibleVoters > 0 && votedCount >= eligibleVoters;
 
-      // Finalize if needed
-      if (timedOut || allVoted) {
+      // Finalize only when ALL eligible voters have voted
+      // NO timeout — minister must settle manually if members are offline
+      if (allVoted) {
         let verdict: "kela" | "saeb" | "tie";
         if (pending.votesYes > pending.votesNo) verdict = "kela";
         else if (pending.votesNo > pending.votesYes) verdict = "saeb";

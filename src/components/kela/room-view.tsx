@@ -574,7 +574,8 @@ export function RoomView({ room, me }: Props) {
   // ---- Seasonal theme + streaks + anniversaries + head-to-head ----
   const seasonalTheme = useMemo(() => getSeasonalTheme(), []);
   const myStreak = useMemo(() => getKelaStreak(me.memberId, incidents as any), [me.memberId, incidents]);
-  const myAccusations = useMemo(() => incidents.filter((i) => i.accusedById === me.memberId).length, [incidents, me.memberId]);
+  // Accuser achievements: only count CONFIRMED kelas (verdict = "kela"), not all accusations
+  const myConfirmedAccusations = useMemo(() => incidents.filter((i) => i.accusedById === me.memberId && i.verdict === "kela").length, [incidents, me.memberId]);
   const myAccuserStreak = useMemo(() => getAccuserStreak(me.memberId, incidents as any), [me.memberId, incidents]);
   const anniversaries = useMemo(() => getAnniversaries(incidents as any, members.map((m) => ({ id: m.id, name: m.name }))), [incidents, members]);
   const headToHead = useMemo(() => getAllHeadToHead(members.map((m) => ({ id: m.id, name: m.name })), incidents as any), [members, incidents]);
@@ -686,13 +687,13 @@ export function RoomView({ room, me }: Props) {
                       🍌 Eater: <b>{(() => { const b = getBadge(myGuiltyCount); return b ? `${b.tier} (${myGuiltyCount})` : `None (0)`; })()}</b>
                     </span>
                     <span className="text-green-700">
-                      🏹 Accuser: <b>{(() => { const a = getAccuserAchievements(myAccusations); const u = [...a].reverse().find((x) => x.unlocked); return u ? `${u.title} (${myAccusations})` : `None (0)`; })()}</b>
+                      🏹 Accuser: <b>{(() => { const a = getAccuserAchievements(myConfirmedAccusations); const u = [...a].reverse().find((x) => x.unlocked); return u ? `${u.title} (${myConfirmedAccusations})` : `None (0)`; })()}</b>
                     </span>
                   </div>
                   {/* My badges: eater badge + accuser achievement */}
                   {(() => {
                     const badge = getBadge(myGuiltyCount);
-                    const accuserAchievements = getAccuserAchievements(myAccusations);
+                    const accuserAchievements = getAccuserAchievements(myConfirmedAccusations);
                     const currentAccuser = [...accuserAchievements].reverse().find((a) => a.unlocked);
                     return (
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -759,12 +760,12 @@ export function RoomView({ room, me }: Props) {
           const accusedPersona = generateAccusedPersona(me.memberId, incidents as any);
           const accuserPersona = generateAccuserPersona(me.memberId, incidents as any);
           const myGuilty = incidents.filter((i) => i.userId === me.memberId && i.verdict === "kela").length;
-          const myAccusations = incidents.filter((i) => i.accusedById === me.memberId).length;
+          const myConfirmedAccusations = incidents.filter((i) => i.accusedById === me.memberId && i.verdict === "kela").length;
 
           // Show shame only if they've eaten kela (guilty >= 1)
           // Show glory only if they've accused someone (accusations >= 1)
           // If neither, show the innocent bystander
-          if (myGuilty === 0 && myAccusations === 0) {
+          if (myGuilty === 0 && myConfirmedAccusations === 0) {
             return (
               <div className="flex items-center gap-1.5 text-xs sm:text-sm px-1">
                 <span className="text-base">😇</span>
@@ -781,7 +782,7 @@ export function RoomView({ room, me }: Props) {
                   <span className="text-muted-foreground hidden md:inline truncate">— {accusedPersona.description}</span>
                 </div>
               )}
-              {myAccusations > 0 && (
+              {myConfirmedAccusations > 0 && (
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="text-base flex-shrink-0">{accuserPersona.emoji}</span>
                   <span className="text-green-700 truncate"><b>Glory:</b> {accuserPersona.title}</span>
@@ -1293,7 +1294,7 @@ export function RoomView({ room, me }: Props) {
               <div className="flex items-center gap-3 flex-wrap">
                 {(() => {
                   const eaterBadge = getBadge(myGuiltyCount);
-                  const accuserAchievements = getAccuserAchievements(myAccusations);
+                  const accuserAchievements = getAccuserAchievements(myConfirmedAccusations);
                   const unlockedAccuser = accuserAchievements.filter((a) => a.unlocked);
                   const hasAny = eaterBadge || unlockedAccuser.length > 0;
                   if (!hasAny) {
@@ -1329,7 +1330,7 @@ export function RoomView({ room, me }: Props) {
 
           {/* Accuser Achievements (PUBG-style sticker unlocks) */}
           <AccuserAchievements
-            accusationCount={myAccusations}
+            accusationCount={myConfirmedAccusations}
             roomCode={room.code}
             memberId={me.memberId}
             isMinister={isMinister}

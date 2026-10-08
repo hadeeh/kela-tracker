@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import type { ActiveVote } from "./use-polling";
 
 type Props = {
@@ -15,32 +14,10 @@ type Props = {
   onSettle?: (action: "kela" | "saeb" | "tie" | "cancel") => void;
 };
 
-function useCountdown(endsAt: number | null) {
-  const [remaining, setRemaining] = useState(0);
-  useEffect(() => {
-    if (!endsAt) return;
-    const tick = () => {
-      const r = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
-      setRemaining(r);
-    };
-    tick();
-    const id = setInterval(tick, 250);
-    return () => clearInterval(id);
-  }, [endsAt]);
-  return remaining;
-}
-
 export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, onSettle }: Props) {
-  const remaining = useCountdown(activeVote?.endsAt ?? null);
   const votesYes = activeVote?.votesYes ?? 0;
   const votesNo = activeVote?.votesNo ?? 0;
   const totalVotes = votesYes + votesNo;
-
-  const progressPct = useMemo(() => {
-    if (!activeVote) return 0;
-    const total = Math.max(1, Math.round((activeVote.endsAt - activeVote.startedAt) / 1000));
-    return Math.min(100, Math.max(0, ((total - remaining) / total) * 100));
-  }, [activeVote, remaining]);
 
   return (
     <Dialog open={open}>
@@ -80,10 +57,12 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
 
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Time remaining</span>
-                <span className="font-mono font-semibold">{remaining}s</span>
+                <span>Vote status</span>
+                <span className="font-semibold text-blue-600">Open — waiting for votes</span>
               </div>
-              <Progress value={progressPct} className="h-2" />
+              <div className="text-[10px] text-muted-foreground text-center">
+                {activeVote.voterCount} voted · Minister can settle anytime
+              </div>
             </div>
 
             {votedChoice ? (
@@ -126,7 +105,7 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
             )}
 
             <p className="text-center text-xs text-muted-foreground">
-              The accused cannot vote. Vote closes automatically.
+              The accused cannot vote. Vote stays open until all vote or minister settles.
             </p>
 
             {/* Minister settle controls */}
