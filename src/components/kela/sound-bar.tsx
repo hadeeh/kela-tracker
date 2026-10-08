@@ -11,6 +11,7 @@ type Props = {
   memberId: string;
   memberName: string;
   kelaCount?: number;
+  accusationCount?: number;
 };
 
 type Broadcast = {
@@ -34,9 +35,21 @@ const EATER_BADGE_LABELS: Record<string, string> = {
   "badge-platinum": "💎 Platinum: Kela Legend (50+)",
   "badge-diamond": "👑 Diamond: Kela Godfather (100+)",
 };
-const EATER_BADGE_MIN = { "badge-rookie": 1, "badge-starter": 5, "badge-bronze": 10, "badge-silver": 20, "badge-gold": 30, "badge-platinum": 50, "badge-diamond": 100 };
+const EATER_BADGE_MIN: Record<string, number> = { "badge-rookie": 1, "badge-starter": 5, "badge-bronze": 10, "badge-silver": 20, "badge-gold": 30, "badge-platinum": 50, "badge-diamond": 100 };
 
-export function SoundBar({ roomCode, memberId, memberName, kelaCount = 0 }: Props) {
+const ACCUSER_ACHIEVEMENT_IDS = ["first-blood", "watchdog", "hunter", "instigator", "prosecutor", "sniper", "godfather"];
+const ACCUSER_ACHIEVEMENT_LABELS: Record<string, string> = {
+  "first-blood": "🔪 First Blood (1+)",
+  "watchdog": "🐕 The Watchdog (5+)",
+  "hunter": "🏹 Kela Hunter (10+)",
+  "instigator": "🔥 The Instigator (20+)",
+  "prosecutor": "⚖️ The Prosecutor (30+)",
+  "sniper": "🎯 Kela Sniper (50+)",
+  "godfather": "👑 Kela Godfather (100+)",
+};
+const ACCUSER_ACHIEVEMENT_MIN: Record<string, number> = { "first-blood": 1, "watchdog": 5, "hunter": 10, "instigator": 20, "prosecutor": 30, "sniper": 50, "godfather": 100 };
+
+export function SoundBar({ roomCode, memberId, memberName, kelaCount = 0, accusationCount = 0 }: Props) {
   const [lastTs, setLastTs] = useState(Date.now());
   const [showSticker, setShowSticker] = useState<Broadcast | null>(null);
   const [rewards, setRewards] = useState<RewardData>({});
@@ -147,7 +160,7 @@ export function SoundBar({ roomCode, memberId, memberName, kelaCount = 0 }: Prop
             return reward?.soundUrl && isUnlocked;
           }).length > 0 && (
             <div className="mb-3">
-              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Your Unlocked Badge Sounds</div>
+              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1.5">🍌 Eater Badge Sounds</div>
               <div className="flex flex-wrap gap-1.5">
                 {EATER_BADGE_IDS.map((id) => {
                   const reward = rewards[id];
@@ -160,6 +173,41 @@ export function SoundBar({ roomCode, memberId, memberName, kelaCount = 0 }: Prop
                         className="text-[10px] px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300 whitespace-nowrap"
                       >
                         ▶ {EATER_BADGE_LABELS[id]}
+                      </button>
+                      <button
+                        onClick={() => broadcastBadgeSound(id)}
+                        className="text-[10px] px-1.5 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200 border border-green-300"
+                        title="Broadcast to all"
+                      >
+                        📢
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Unlocked accuser achievement sounds */}
+          {ACCUSER_ACHIEVEMENT_IDS.filter((id) => {
+            const reward = rewards[id];
+            const isUnlocked = accusationCount >= (ACCUSER_ACHIEVEMENT_MIN as any)[id];
+            return reward?.soundUrl && isUnlocked;
+          }).length > 0 && (
+            <div className="mb-3">
+              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1.5">🏹 Accuser Achievement Sounds</div>
+              <div className="flex flex-wrap gap-1.5">
+                {ACCUSER_ACHIEVEMENT_IDS.map((id) => {
+                  const reward = rewards[id];
+                  const isUnlocked = accusationCount >= (ACCUSER_ACHIEVEMENT_MIN as any)[id];
+                  if (!reward?.soundUrl || !isUnlocked) return null;
+                  return (
+                    <div key={id} className="flex items-center gap-1">
+                      <button
+                        onClick={() => playBadgeSound(id)}
+                        className="text-[10px] px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300 whitespace-nowrap"
+                      >
+                        ▶ {ACCUSER_ACHIEVEMENT_LABELS[id]}
                       </button>
                       <button
                         onClick={() => broadcastBadgeSound(id)}
