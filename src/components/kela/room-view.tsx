@@ -1385,7 +1385,7 @@ export function RoomView({ room, me }: Props) {
 
       {/* Invite dialog */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Invite a friend</DialogTitle>
             <DialogDescription>
@@ -1471,7 +1471,7 @@ export function RoomView({ room, me }: Props) {
 
       {/* Accuse dialog */}
       <AlertDialog open={!!accuseTarget} onOpenChange={(o) => { if (!o) setAccuseTarget(null); }}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>Accuse {accuseTarget?.name} of eating kela?</AlertDialogTitle>
             <AlertDialogDescription>

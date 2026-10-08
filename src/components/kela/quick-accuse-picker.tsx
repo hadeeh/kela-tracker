@@ -16,7 +16,7 @@ type Props = {
 export function QuickAccusePicker({ open, members, onSelect, onClose }: Props) {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">🍌 Quick Accuse</DialogTitle>
           <DialogDescription>Select who ate kela</DialogDescription>
