@@ -670,11 +670,11 @@ export function RoomView({ room, me }: Props) {
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-3">
-                  {/* Section 1: Fine amount + stats */}
+                  {/* ============ TOP: Money info (primary focus) ============ */}
                   <div>
                     <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-yellow-900/70">Your Total Fine Due</div>
-                    <div className="text-2xl sm:text-4xl font-bold text-yellow-950 mt-0.5">PKR {myFine.toLocaleString()}</div>
-                    <div className="text-[11px] sm:text-sm text-yellow-900/80 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                    <div className="text-3xl sm:text-5xl font-extrabold text-yellow-950 mt-0.5 leading-none">PKR {myFine.toLocaleString()}</div>
+                    <div className="text-[11px] sm:text-sm text-yellow-900/80 mt-2 flex flex-wrap gap-x-2 gap-y-0.5">
                       <span>{myGuiltyCount} kela{myGuiltyCount === 1 ? "" : "s"}</span>
                       <span>· PKR {myGrossFine.toLocaleString()} total</span>
                       {myTotalPaid > 0 && <span>· PKR {myTotalPaid.toLocaleString()} paid</span>}
@@ -687,7 +687,7 @@ export function RoomView({ room, me }: Props) {
                   {/* Divider */}
                   <div className="h-px bg-yellow-900/15" />
 
-                  {/* Section 2: Rate */}
+                  {/* Rate row — grouped with money info */}
                   <div className="flex items-center gap-2 text-[11px] sm:text-xs">
                     <span className="text-yellow-900/70 font-medium uppercase tracking-wide">Rate</span>
                     {isMinister ? (
@@ -710,11 +710,9 @@ export function RoomView({ room, me }: Props) {
                     )}
                   </div>
 
-                  {/* Divider */}
-                  <div className="h-px bg-yellow-900/15" />
-
-                  {/* Section 3: Persona */}
-                  <div>
+                  {/* ============ BOTTOM: Identity / Persona / Badges (footer block) ============ */}
+                  <div className="mt-2 -mx-2 sm:-mx-3 px-3 sm:px-4 py-3 rounded-xl bg-yellow-900/5 border border-yellow-900/10 space-y-2.5">
+                    {/* Persona title */}
                     {(() => {
                       const accusedPersona = generateAccusedPersona(me.memberId, incidents as any);
                       const accuserPersona = generateAccuserPersona(me.memberId, incidents as any);
@@ -723,63 +721,66 @@ export function RoomView({ room, me }: Props) {
                       if (myGuilty === 0 && myAcc === 0) {
                         return (
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">😇</span>
-                            <div>
-                              <div className="text-xs sm:text-sm font-bold text-yellow-950">The Innocent Bystander</div>
+                            <span className="text-xl">😇</span>
+                            <div className="leading-tight">
+                              <div className="text-sm sm:text-base font-bold text-yellow-950">The Innocent Bystander</div>
                               <div className="text-[10px] sm:text-xs text-yellow-900/60">Hasn&apos;t eaten kela or accused anyone. Suspiciously clean.</div>
                             </div>
                           </div>
                         );
                       }
                       return (
-                        <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
                           {myGuilty > 0 && (
                             <div className="flex items-center gap-2">
-                              <span className="text-lg">{accusedPersona.emoji}</span>
-                              <div>
-                                <span className="text-[10px] uppercase font-bold text-red-700/70">Shame</span>
-                                <div className="text-xs sm:text-sm font-bold text-red-800">{accusedPersona.title}</div>
+                              <span className="text-xl">{accusedPersona.emoji}</span>
+                              <div className="leading-tight">
+                                <span className="text-[10px] uppercase font-bold text-red-700/70 tracking-wide">Shame</span>
+                                <div className="text-sm font-bold text-red-800">{accusedPersona.title}</div>
                               </div>
                             </div>
                           )}
                           {myAcc > 0 && (
                             <div className="flex items-center gap-2">
-                              <span className="text-lg">{accuserPersona.emoji}</span>
-                              <div>
-                                <span className="text-[10px] uppercase font-bold text-green-700/70">Glory</span>
-                                <div className="text-xs sm:text-sm font-bold text-green-800">{accuserPersona.title}</div>
+                              <span className="text-xl">{accuserPersona.emoji}</span>
+                              <div className="leading-tight">
+                                <span className="text-[10px] uppercase font-bold text-green-700/70 tracking-wide">Glory</span>
+                                <div className="text-sm font-bold text-green-800">{accuserPersona.title}</div>
                               </div>
                             </div>
                           )}
                         </div>
                       );
                     })()}
-                  </div>
 
-                  {/* Divider */}
-                  <div className="h-px bg-yellow-900/15" />
-
-                  {/* Section 4: Levels + Badges */}
-                  <div className="space-y-2">
-                    {/* Levels */}
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] sm:text-xs">
-                      <span className="text-red-700">🍌 Eater: <b>{(() => { const b = getBadge(myGuiltyCount); return b ? `${b.tier} (${myGuiltyCount})` : `None (0)`; })()}</b></span>
-                      <span className="text-green-700">🏹 Accuser: <b>{(() => { const a = getAccuserAchievements(myConfirmedAccusations); const u = [...a].reverse().find((x) => x.unlocked); return u ? `${u.title} (${myConfirmedAccusations})` : `None (0)`; })()}</b></span>
-                    </div>
-                    {/* Badges */}
+                    {/* Badges row — consolidated (badge already shows tier + count) */}
                     {(() => {
                       const badge = getBadge(myGuiltyCount);
                       const accuserAchievements = getAccuserAchievements(myConfirmedAccusations);
                       const currentAccuser = [...accuserAchievements].reverse().find((a) => a.unlocked);
+                      const hasAny = badge || currentAccuser;
                       return (
                         <div className="flex items-center gap-2 flex-wrap">
                           {badge ? (
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${badge.color} bg-white`}>🍌 {badge.emoji} {badge.title}</span>
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${badge.color} bg-white`}>
+                              🍌 {badge.emoji} {badge.title} <span className="opacity-60 font-medium">· {myGuiltyCount}</span>
+                            </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">No eater badge yet</span>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">
+                              🍌 No eater badge yet
+                            </span>
                           )}
-                          {currentAccuser && (
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${currentAccuser.color} bg-white`}>{currentAccuser.sticker} {currentAccuser.title}</span>
+                          {currentAccuser ? (
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${currentAccuser.color} bg-white`}>
+                              {currentAccuser.sticker} {currentAccuser.title} <span className="opacity-60 font-medium">· {myConfirmedAccusations}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">
+                              🏹 No accuser badge yet
+                            </span>
+                          )}
+                          {!hasAny && (
+                            <span className="text-[10px] text-yellow-900/50 italic">Earn badges by getting caught or catching others</span>
                           )}
                         </div>
                       );
