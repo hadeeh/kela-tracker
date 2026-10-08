@@ -843,7 +843,7 @@ export function RoomView({ room, me }: Props) {
         )}
 
         {/* Sound Bar — everyone hears/sees broadcasts */}
-        <SoundBar roomCode={room.code} memberId={me.memberId} memberName={me.memberName} />
+        <SoundBar roomCode={room.code} memberId={me.memberId} memberName={me.memberName} kelaCount={myGuiltyCount} />
 
         {/* Leaderboard, Friend Circle, Trials, etc. all in Dashboard tab */}
         {/* Dashboard tab closes after Head-to-Head section below */}
