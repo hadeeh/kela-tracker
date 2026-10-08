@@ -1426,22 +1426,22 @@ export function RoomView({ room, me }: Props) {
             {/* Role selection */}
             <div className="space-y-2">
               <Label>Role</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setInviteRole("member")}
-                  className={`rounded-lg border p-3 text-left transition ${inviteRole === "member" ? "border-yellow-400 bg-yellow-50" : "border-border bg-card hover:bg-muted"}`}
+                  className={`rounded-lg border p-2.5 text-left transition ${inviteRole === "member" ? "border-yellow-400 bg-yellow-50" : "border-border bg-card hover:bg-muted"}`}
                 >
-                  <div className="font-semibold text-sm">👤 Member</div>
-                  <div className="text-xs text-muted-foreground">Can vote & be accused</div>
+                  <div className="font-semibold text-xs sm:text-sm">👤 Member</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">Can vote & be accused</div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setInviteRole("minister")}
-                  className={`rounded-lg border p-3 text-left transition ${inviteRole === "minister" ? "border-yellow-400 bg-yellow-50" : "border-border bg-card hover:bg-muted"}`}
+                  className={`rounded-lg border p-2.5 text-left transition ${inviteRole === "minister" ? "border-yellow-400 bg-yellow-50" : "border-border bg-card hover:bg-muted"}`}
                 >
-                  <div className="font-semibold text-sm">👑 Kela Minister</div>
-                  <div className="text-xs text-muted-foreground">Can invite, set rates & manage sounds</div>
+                  <div className="font-semibold text-xs sm:text-sm">👑 Kela Minister</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">Can invite, set rates & sounds</div>
                 </button>
               </div>
             </div>
