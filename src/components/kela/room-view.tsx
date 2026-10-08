@@ -664,152 +664,149 @@ export function RoomView({ room, me }: Props) {
 
       {/* Main content (scrolls under sticky header) */}
       <div className="container mx-auto max-w-5xl p-3 sm:p-4 space-y-3 sm:space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          {/* My fine summary + persona + rate (all in one card) */}
-          <Card className="sm:col-span-2 bg-gradient-to-br from-yellow-300 to-amber-400 border-yellow-400 shadow-md overflow-hidden">
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1 space-y-3">
-                  {/* ============ TOP: Money info (primary focus) ============ */}
-                  <div>
-                    <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-yellow-900/70">Your Total Fine Due</div>
-                    <div className="text-3xl sm:text-5xl font-extrabold text-yellow-950 mt-0.5 leading-none">PKR {myFine.toLocaleString()}</div>
-                    <div className="text-[11px] sm:text-sm text-yellow-900/80 mt-2 flex flex-wrap gap-x-2 gap-y-0.5">
-                      <span>{myGuiltyCount} kela{myGuiltyCount === 1 ? "" : "s"}</span>
-                      <span>· PKR {myGrossFine.toLocaleString()} total</span>
-                      {myTotalPaid > 0 && <span>· PKR {myTotalPaid.toLocaleString()} paid</span>}
-                      {mySettledCount > 0 && <span className="text-green-700">{mySettledCount} settled ✓</span>}
-                      {myStreak >= 2 && <span className="text-orange-600 font-semibold">🔥 {myStreak}-day streak!</span>}
-                      {myAccuserStreak >= 2 && <span className="text-green-600 font-semibold">🏹 {myAccuserStreak}-day accuse!</span>}
+        {/* My fine summary + persona + rate (single consolidated card) */}
+        <Card className="bg-gradient-to-br from-yellow-300 to-amber-400 border-yellow-400 shadow-md overflow-hidden">
+          <CardContent className="p-4 sm:p-6 space-y-3">
+            {/* ============ TOP ROW: Money info + banana icon ============ */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.15em] text-yellow-900/70">Your Total Fine Due</div>
+                <div className="text-4xl sm:text-6xl font-black text-yellow-950 mt-1 leading-none tracking-tight">PKR {myFine.toLocaleString()}</div>
+                <div className="text-[11px] sm:text-sm text-yellow-900/80 mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                  <span className="font-semibold">{myGuiltyCount} kela{myGuiltyCount === 1 ? "" : "s"}</span>
+                  <span className="text-yellow-900/40">·</span>
+                  <span>PKR {myGrossFine.toLocaleString()} total</span>
+                  {myTotalPaid > 0 && (
+                    <>
+                      <span className="text-yellow-900/40">·</span>
+                      <span>PKR {myTotalPaid.toLocaleString()} paid</span>
+                    </>
+                  )}
+                  {mySettledCount > 0 && (
+                    <>
+                      <span className="text-yellow-900/40">·</span>
+                      <span className="text-green-700 font-semibold">{mySettledCount} settled ✓</span>
+                    </>
+                  )}
+                  {myStreak >= 2 && (
+                    <>
+                      <span className="text-yellow-900/40">·</span>
+                      <span className="text-orange-600 font-semibold">🔥 {myStreak}-day streak</span>
+                    </>
+                  )}
+                  {myAccuserStreak >= 2 && (
+                    <>
+                      <span className="text-yellow-900/40">·</span>
+                      <span className="text-green-600 font-semibold">🏹 {myAccuserStreak}-day accuse</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="text-6xl sm:text-8xl opacity-25 flex-shrink-0 select-none" aria-hidden>🍌</div>
+            </div>
+
+            {/* Rate row — grouped with money info */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-yellow-900/70 font-bold uppercase tracking-wide text-[10px]">Rate</span>
+              {isMinister ? (
+                <>
+                  <span className="text-yellow-900/70 text-[11px]">PKR</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={5}
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    className="w-20 px-2 py-1 rounded-md border border-yellow-300 bg-white/90 text-yellow-950 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500/40"
+                  />
+                  <button onClick={saveRate} disabled={savingRate} className="px-2.5 py-1 rounded-md bg-yellow-900 text-yellow-50 font-bold text-[11px] hover:bg-yellow-800 disabled:opacity-50 transition-colors">
+                    {savingRate ? "..." : "Save"}
+                  </button>
+                  <span className="text-[10px] text-yellow-900/50 hidden sm:inline ml-1">/kela · change others in Settings → Members</span>
+                </>
+              ) : (
+                <span className="text-yellow-950 font-bold text-sm">PKR {myRate}<span className="text-yellow-900/60 font-medium text-[11px]">/kela</span></span>
+              )}
+            </div>
+
+            {/* ============ BOTTOM: Identity / Persona / Badges (full-width footer) ============ */}
+            <div className="mt-1 -mx-2 sm:-mx-3 px-3 sm:px-4 py-3 rounded-xl bg-yellow-900/5 border border-yellow-900/10 space-y-2.5">
+              {/* Persona title */}
+              {(() => {
+                const accusedPersona = generateAccusedPersona(me.memberId, incidents as any);
+                const accuserPersona = generateAccuserPersona(me.memberId, incidents as any);
+                const myGuilty = incidents.filter((i) => i.userId === me.memberId && i.verdict === "kela").length;
+                const myAcc = incidents.filter((i) => i.accusedById === me.memberId && i.verdict === "kela").length;
+                if (myGuilty === 0 && myAcc === 0) {
+                  return (
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl">😇</span>
+                      <div className="leading-tight">
+                        <div className="text-sm sm:text-base font-bold text-yellow-950">The Innocent Bystander</div>
+                        <div className="text-[10px] sm:text-xs text-yellow-900/60">Hasn&apos;t eaten kela or accused anyone. Suspiciously clean.</div>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="h-px bg-yellow-900/15" />
-
-                  {/* Rate row — grouped with money info */}
-                  <div className="flex items-center gap-2 text-[11px] sm:text-xs">
-                    <span className="text-yellow-900/70 font-medium uppercase tracking-wide">Rate</span>
-                    {isMinister ? (
-                      <>
-                        <span className="text-yellow-900/70">PKR</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={5}
-                          value={rateInput}
-                          onChange={(e) => setRateInput(e.target.value)}
-                          className="w-16 px-1.5 py-0.5 rounded border border-yellow-300 bg-white/80 text-yellow-950 font-bold text-xs"
-                        />
-                        <button onClick={saveRate} disabled={savingRate} className="text-yellow-900 font-bold hover:underline disabled:opacity-50">
-                          {savingRate ? "..." : "Save"}
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-yellow-950 font-bold">PKR {myRate}/kela</span>
+                  );
+                }
+                return (
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                    {myGuilty > 0 && (
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-2xl">{accusedPersona.emoji}</span>
+                        <div className="leading-tight">
+                          <div className="text-[10px] uppercase font-bold text-red-700/70 tracking-wider">Shame</div>
+                          <div className="text-sm font-bold text-red-800">{accusedPersona.title}</div>
+                        </div>
+                      </div>
+                    )}
+                    {myAcc > 0 && (
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-2xl">{accuserPersona.emoji}</span>
+                        <div className="leading-tight">
+                          <div className="text-[10px] uppercase font-bold text-green-700/70 tracking-wider">Glory</div>
+                          <div className="text-sm font-bold text-green-800">{accuserPersona.title}</div>
+                        </div>
+                      </div>
                     )}
                   </div>
+                );
+              })()}
 
-                  {/* ============ BOTTOM: Identity / Persona / Badges (footer block) ============ */}
-                  <div className="mt-2 -mx-2 sm:-mx-3 px-3 sm:px-4 py-3 rounded-xl bg-yellow-900/5 border border-yellow-900/10 space-y-2.5">
-                    {/* Persona title */}
-                    {(() => {
-                      const accusedPersona = generateAccusedPersona(me.memberId, incidents as any);
-                      const accuserPersona = generateAccuserPersona(me.memberId, incidents as any);
-                      const myGuilty = incidents.filter((i) => i.userId === me.memberId && i.verdict === "kela").length;
-                      const myAcc = incidents.filter((i) => i.accusedById === me.memberId && i.verdict === "kela").length;
-                      if (myGuilty === 0 && myAcc === 0) {
-                        return (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">😇</span>
-                            <div className="leading-tight">
-                              <div className="text-sm sm:text-base font-bold text-yellow-950">The Innocent Bystander</div>
-                              <div className="text-[10px] sm:text-xs text-yellow-900/60">Hasn&apos;t eaten kela or accused anyone. Suspiciously clean.</div>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                          {myGuilty > 0 && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xl">{accusedPersona.emoji}</span>
-                              <div className="leading-tight">
-                                <span className="text-[10px] uppercase font-bold text-red-700/70 tracking-wide">Shame</span>
-                                <div className="text-sm font-bold text-red-800">{accusedPersona.title}</div>
-                              </div>
-                            </div>
-                          )}
-                          {myAcc > 0 && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xl">{accuserPersona.emoji}</span>
-                              <div className="leading-tight">
-                                <span className="text-[10px] uppercase font-bold text-green-700/70 tracking-wide">Glory</span>
-                                <div className="text-sm font-bold text-green-800">{accuserPersona.title}</div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    {/* Badges row — consolidated (badge already shows tier + count) */}
-                    {(() => {
-                      const badge = getBadge(myGuiltyCount);
-                      const accuserAchievements = getAccuserAchievements(myConfirmedAccusations);
-                      const currentAccuser = [...accuserAchievements].reverse().find((a) => a.unlocked);
-                      const hasAny = badge || currentAccuser;
-                      return (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {badge ? (
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${badge.color} bg-white`}>
-                              🍌 {badge.emoji} {badge.title} <span className="opacity-60 font-medium">· {myGuiltyCount}</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">
-                              🍌 No eater badge yet
-                            </span>
-                          )}
-                          {currentAccuser ? (
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${currentAccuser.color} bg-white`}>
-                              {currentAccuser.sticker} {currentAccuser.title} <span className="opacity-60 font-medium">· {myConfirmedAccusations}</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">
-                              🏹 No accuser badge yet
-                            </span>
-                          )}
-                          {!hasAny && (
-                            <span className="text-[10px] text-yellow-900/50 italic">Earn badges by getting caught or catching others</span>
-                          )}
-                        </div>
-                      );
-                    })()}
+              {/* Badges row */}
+              {(() => {
+                const badge = getBadge(myGuiltyCount);
+                const accuserAchievements = getAccuserAchievements(myConfirmedAccusations);
+                const currentAccuser = [...accuserAchievements].reverse().find((a) => a.unlocked);
+                const hasAny = badge || currentAccuser;
+                return (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {badge ? (
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${badge.color} bg-white`}>
+                        🍌 {badge.emoji} {badge.title} <span className="opacity-60 font-medium">· {myGuiltyCount}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">
+                        🍌 No eater badge yet
+                      </span>
+                    )}
+                    {currentAccuser ? (
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${currentAccuser.color} bg-white`}>
+                        {currentAccuser.sticker} {currentAccuser.title} <span className="opacity-60 font-medium">· {myConfirmedAccusations}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-white/60 text-yellow-900/60 border-yellow-300/50">
+                        🏹 No accuser badge yet
+                      </span>
+                    )}
+                    {!hasAny && (
+                      <span className="text-[10px] text-yellow-900/50 italic">Earn badges by getting caught or catching others</span>
+                    )}
                   </div>
-                </div>
-                <div className="text-5xl sm:text-7xl opacity-30 flex-shrink-0">🍌</div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Minister-only: quick rate management (replaces old Your Rate card) */}
-          {isMinister && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Quick Rate Edit</CardTitle>
-                <CardDescription className="text-[11px]">Change your own rate per kela.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-muted-foreground">PKR</span>
-                  <Input type="number" min={0} step={5} value={rateInput} onChange={(e) => setRateInput(e.target.value)} className="flex-1" />
-                  <Button size="sm" onClick={saveRate} disabled={savingRate}>{savingRate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}</Button>
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-2">To change other members' rates, go to Settings → Member Management.</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                );
+              })()}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Persona is now inside the Total Fine Due card above */}
 
