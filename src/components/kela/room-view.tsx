@@ -596,32 +596,73 @@ export function RoomView({ room, me }: Props) {
       ? "min-h-screen bg-gradient-to-br from-red-100 via-red-50 to-orange-100"
       : `min-h-screen bg-gradient-to-br ${seasonalTheme.bgClass}`
     }>
-      {/* Walk of Shame banner */}
-      {walkOfShame && (
-        <div className="bg-red-600 text-white text-center py-2 text-sm font-bold animate-pulse sticky top-0 z-50">
-          💀 WALK OF SHAME — You&apos;ve eaten 3+ kelas today! 💀
-        </div>
-      )}
-      {/* Seasonal theme banner */}
-      {seasonalTheme.bannerText && !walkOfShame && (
-        <div className="bg-yellow-100 border-b border-yellow-200 text-center py-1.5 text-xs sm:text-sm text-yellow-800">
-          {seasonalTheme.bannerText}
-        </div>
-      )}
-      <div className="container mx-auto max-w-5xl p-3 sm:p-4 space-y-3 sm:space-y-4">
-        {/* Header */}
-        <header className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 pt-2 sticky top-0 z-40 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 pb-2">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="text-3xl sm:text-4xl flex-shrink-0">🍌</div>
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-yellow-950 truncate">{room.name}</h1>
-              <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
-                Hi, {me.memberName}{isMinister && <span className="text-yellow-700 font-semibold"> 👑</span>} · Code: <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>
-              </p>
+      {/* Sticky top section: seasonal banner + header + tab bar */}
+      <div className="sticky top-0 z-40">
+        {/* Walk of Shame banner */}
+        {walkOfShame && (
+          <div className="bg-red-600 text-white text-center py-2 text-sm font-bold animate-pulse">
+            💀 WALK OF SHAME — You&apos;ve eaten 3+ kelas today! 💀
+          </div>
+        )}
+        {/* Seasonal theme banner */}
+        {seasonalTheme.bannerText && !walkOfShame && (
+          <div className="bg-yellow-100 border-b border-yellow-200 text-center py-1.5 px-3 text-xs sm:text-sm text-yellow-800">
+            {seasonalTheme.bannerText}
+          </div>
+        )}
+        <div className="bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
+          <div className="container mx-auto max-w-5xl px-3 sm:px-4 pt-2 pb-1">
+            {/* Header */}
+            <header className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="text-3xl sm:text-4xl flex-shrink-0">🍌</div>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-yellow-950 truncate">{room.name}</h1>
+                <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                  Hi, {me.memberName}{isMinister && <span className="text-yellow-700 font-semibold"> 👑</span>} · Code: <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>
+                </p>
+              </div>
+            </header>
+          </div>
+
+          {/* Tab navigation + action buttons */}
+          <div className="container mx-auto max-w-5xl px-3 sm:px-4">
+            <div className="flex items-center justify-between gap-2 border-b pb-1.5">
+              <div className="flex items-center gap-0.5 sm:gap-1">
+                {([
+                  { id: "dashboard", emoji: "📊", label: "Dashboard" },
+                  { id: "achievements", emoji: "🏆", label: "Achievements" },
+                  { id: "settings", emoji: "⚙️", label: "Settings" },
+                ] as const).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-2 sm:px-4 py-1.5 rounded-lg text-[11px] sm:text-sm font-semibold transition whitespace-nowrap ${
+                      activeTab === tab.id ? "bg-yellow-400 text-yellow-950" : "text-muted-foreground hover:bg-yellow-100"
+                    }`}
+                  >
+                    <span className="mr-0.5 sm:mr-1">{tab.emoji}</span>
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {isMinister && (
+                  <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)} className="h-8 px-2.5 text-xs">
+                    <Mail className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={handleLeave} className="h-8 px-2.5 text-xs">
+                  <LogOut className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
-          {/* Invite/Leave buttons moved to tab bar below */}
-        </header>
+        </div>
+      </div>
+
+      {/* Main content (scrolls under sticky header) */}
+      <div className="container mx-auto max-w-5xl p-3 sm:p-4 space-y-3 sm:space-y-4">
+        {/* Persona text at top */}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           {/* My fine summary */}
@@ -750,39 +791,6 @@ export function RoomView({ room, me }: Props) {
             </div>
           );
         })()}
-
-        {/* Tab navigation + header buttons on same row (mobile) */}
-        <div className="flex items-center justify-between gap-2 border-b pb-1.5 sticky top-[56px] z-30 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
-          <div className="flex items-center gap-0.5 sm:gap-1">
-            {([
-              { id: "dashboard", emoji: "📊", label: "Dashboard" },
-              { id: "achievements", emoji: "🏆", label: "Achievements" },
-              { id: "settings", emoji: "⚙️", label: "Settings" },
-            ] as const).map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-2 sm:px-4 py-1.5 rounded-lg text-[11px] sm:text-sm font-semibold transition whitespace-nowrap ${
-                  activeTab === tab.id ? "bg-yellow-400 text-yellow-950" : "text-muted-foreground hover:bg-yellow-100"
-                }`}
-              >
-                <span className="mr-0.5 sm:mr-1">{tab.emoji}</span>
-                <span className="hidden sm:inline">{tab.label}</span>
-              </button>
-            ))}
-          </div>
-          {/* Header action buttons (inline on mobile, beside tabs) */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {isMinister && (
-              <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)} className="h-8 px-2.5 text-xs">
-                <Mail className="h-3.5 w-3.5" />
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={handleLeave} className="h-8 px-2.5 text-xs">
-              <LogOut className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
 
         {/* ============ DASHBOARD TAB ============ */}
         {activeTab === "dashboard" && (
