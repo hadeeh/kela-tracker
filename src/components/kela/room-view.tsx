@@ -620,48 +620,32 @@ export function RoomView({ room, me }: Props) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-            {isMinister && (
-              <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)} className="h-9 px-3">
-                <Mail className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Invite</span>
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={handleLeave} className="h-9 px-3">
-              <LogOut className="h-4 w-4 sm:mr-1" /><span className="hidden sm:inline">Leave</span>
-            </Button>
-          </div>
+          {/* Invite/Leave buttons moved to tab bar below */}
         </header>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           {/* My fine summary */}
-          <Card className="sm:col-span-2 bg-gradient-to-br from-yellow-300 to-amber-400 border-yellow-400 shadow-md">
+          <Card className="sm:col-span-2 bg-gradient-to-br from-yellow-300 to-amber-400 border-yellow-400 shadow-md overflow-hidden">
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-yellow-900/70">Your Total Fine Due</div>
-                  <div className="text-3xl sm:text-4xl font-bold text-yellow-950 mt-1">PKR {myFine.toLocaleString()}</div>
-                  <div className="text-xs sm:text-sm text-yellow-900/80 mt-1">
-                    {myGuiltyCount} kela{myGuiltyCount === 1 ? "" : "s"} · PKR {myGrossFine.toLocaleString()} total
-                    {myTotalPaid > 0 && (
-                      <span> · PKR {myTotalPaid.toLocaleString()} paid</span>
-                    )}
-                    {mySettledCount > 0 && (
-                      <span className="text-green-700"> · {mySettledCount} settled ✓</span>
-                    )}
-                    {myStreak >= 2 && (
-                      <span className="text-orange-600 font-semibold"> · 🔥 {myStreak}-day kela streak!</span>
-                    )}
-                    {myAccuserStreak >= 2 && (
-                      <span className="text-green-600 font-semibold"> · 🏹 {myAccuserStreak}-day accuse streak!</span>
-                    )}
+                  <div className="text-2xl sm:text-4xl font-bold text-yellow-950 mt-1">PKR {myFine.toLocaleString()}</div>
+                  <div className="text-[11px] sm:text-sm text-yellow-900/80 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                    <span>{myGuiltyCount} kela{myGuiltyCount === 1 ? "" : "s"}</span>
+                    <span>· PKR {myGrossFine.toLocaleString()} total</span>
+                    {myTotalPaid > 0 && <span>· PKR {myTotalPaid.toLocaleString()} paid</span>}
+                    {mySettledCount > 0 && <span className="text-green-700">{mySettledCount} settled ✓</span>}
+                    {myStreak >= 2 && <span className="text-orange-600 font-semibold">🔥 {myStreak}-day streak!</span>}
+                    {myAccuserStreak >= 2 && <span className="text-green-600 font-semibold">🏹 {myAccuserStreak}-day accuse!</span>}
                   </div>
                   {/* Level display */}
-                  <div className="mt-1.5 flex items-center gap-3 text-[11px] sm:text-xs">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] sm:text-xs">
                     <span className="text-red-700">
-                      🍌 Eater Level: <b>{(() => { const b = getBadge(myGuiltyCount); return b ? `${b.tier} (${myGuiltyCount})` : `None (0)`; })()}</b>
+                      🍌 Eater: <b>{(() => { const b = getBadge(myGuiltyCount); return b ? `${b.tier} (${myGuiltyCount})` : `None (0)`; })()}</b>
                     </span>
                     <span className="text-green-700">
-                      🏹 Accuser Level: <b>{(() => { const a = getAccuserAchievements(myAccusations); const u = [...a].reverse().find((x) => x.unlocked); return u ? `${u.title} (${myAccusations})` : `None (0)`; })()}</b>
+                      🏹 Accuser: <b>{(() => { const a = getAccuserAchievements(myAccusations); const u = [...a].reverse().find((x) => x.unlocked); return u ? `${u.title} (${myAccusations})` : `None (0)`; })()}</b>
                     </span>
                   </div>
                   {/* My badges: eater badge + accuser achievement */}
@@ -738,43 +722,56 @@ export function RoomView({ room, me }: Props) {
             );
           }
           return (
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm px-1">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-[11px] sm:text-sm px-1 overflow-hidden">
               {myGuilty > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-base">{accusedPersona.emoji}</span>
-                  <span className="text-red-700"><b>Shame:</b> {accusedPersona.title}</span>
-                  <span className="text-muted-foreground hidden sm:inline">— {accusedPersona.description}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-base flex-shrink-0">{accusedPersona.emoji}</span>
+                  <span className="text-red-700 truncate"><b>Shame:</b> {accusedPersona.title}</span>
+                  <span className="text-muted-foreground hidden md:inline truncate">— {accusedPersona.description}</span>
                 </div>
               )}
               {myAccusations > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-base">{accuserPersona.emoji}</span>
-                  <span className="text-green-700"><b>Glory:</b> {accuserPersona.title}</span>
-                  <span className="text-muted-foreground hidden sm:inline">— {accuserPersona.description}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-base flex-shrink-0">{accuserPersona.emoji}</span>
+                  <span className="text-green-700 truncate"><b>Glory:</b> {accuserPersona.title}</span>
+                  <span className="text-muted-foreground hidden md:inline truncate">— {accuserPersona.description}</span>
                 </div>
               )}
             </div>
           );
         })()}
 
-        {/* Tab navigation — reduces scrolling, works on mobile + desktop */}
-        <div className="flex items-center gap-1 border-b pb-1 sticky top-[60px] z-30 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
-          {([
-            { id: "dashboard", emoji: "📊", label: "Dashboard" },
-            { id: "achievements", emoji: "🏆", label: "Achievements" },
-            { id: "settings", emoji: "⚙️", label: "Settings" },
-          ] as const).map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 sm:px-4 py-1.5 rounded-t-lg text-xs sm:text-sm font-semibold transition ${
-                activeTab === tab.id ? "bg-yellow-400 text-yellow-950" : "text-muted-foreground hover:bg-yellow-100"
-              }`}
-            >
-              <span className="mr-1">{tab.emoji}</span>
-              <span className="hidden sm:inline">{tab.label}</span>
-            </button>
-          ))}
+        {/* Tab navigation + header buttons on same row (mobile) */}
+        <div className="flex items-center justify-between gap-2 border-b pb-1.5 sticky top-[56px] z-30 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
+          <div className="flex items-center gap-0.5 sm:gap-1">
+            {([
+              { id: "dashboard", emoji: "📊", label: "Dashboard" },
+              { id: "achievements", emoji: "🏆", label: "Achievements" },
+              { id: "settings", emoji: "⚙️", label: "Settings" },
+            ] as const).map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-2 sm:px-4 py-1.5 rounded-lg text-[11px] sm:text-sm font-semibold transition whitespace-nowrap ${
+                  activeTab === tab.id ? "bg-yellow-400 text-yellow-950" : "text-muted-foreground hover:bg-yellow-100"
+                }`}
+              >
+                <span className="mr-0.5 sm:mr-1">{tab.emoji}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+          {/* Header action buttons (inline on mobile, beside tabs) */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {isMinister && (
+              <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)} className="h-8 px-2.5 text-xs">
+                <Mail className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={handleLeave} className="h-8 px-2.5 text-xs">
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
 
         {/* ============ DASHBOARD TAB ============ */}
@@ -947,7 +944,7 @@ export function RoomView({ room, me }: Props) {
                   const totalAccused = incidents.filter((i) => i.user.id === m.id).length;
                   const totalFine = Math.max(0, grossFine - totalPaid);
                   return (
-                    <div key={m.id} className="rounded-xl border bg-card p-4 flex flex-col gap-3">
+                    <div key={m.id} className="rounded-xl border bg-card p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3 overflow-hidden">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10 bg-yellow-200 text-yellow-900">
                           <AvatarFallback>{m.name.slice(0, 2).toUpperCase()}</AvatarFallback>
@@ -1259,7 +1256,7 @@ export function RoomView({ room, me }: Props) {
           </Card>
         )}
 
-        <footer className="text-center text-[11px] sm:text-xs text-muted-foreground pb-4 pt-2">
+        <footer className="text-center text-[11px] sm:text-xs text-muted-foreground pb-20 pt-2">
           Made with 🍌 · Real-time voting · Sound on 🔊
         </footer>
         </>
@@ -1341,28 +1338,28 @@ export function RoomView({ room, me }: Props) {
             </CardHeader>
             <CardContent>
               <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground pb-2">🍌 Eater Badges (Shame)</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {BADGE_TIERS.map((tier) => (
-                  <div key={tier.minKelas} className={`flex items-center gap-3 rounded-lg border p-3 ${tier.color}`}>
-                    <div className="text-3xl flex-shrink-0">{tier.emoji}</div>
-                    <div className="min-w-0">
-                      <div className="font-bold text-sm">{tier.title}</div>
-                      <div className="text-xs opacity-80">{tier.tier} · {tier.minKelas}+ kelas</div>
-                      <div className="text-[11px] opacity-70 truncate">{tier.description}</div>
+                  <div key={tier.minKelas} className={`flex items-center gap-2 rounded-lg border p-2.5 ${tier.color} overflow-hidden`}>
+                    <div className="text-2xl flex-shrink-0">{tier.emoji}</div>
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="font-bold text-xs sm:text-sm truncate">{tier.title}</div>
+                      <div className="text-[10px] sm:text-xs opacity-80">{tier.tier} · {tier.minKelas}+ kelas</div>
+                      <div className="text-[10px] opacity-70 truncate hidden sm:block">{tier.description}</div>
                     </div>
                   </div>
                 ))}
               </div>
               <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground pt-4 pb-2">🏹 Accuser Achievements (Glory)</div>
               <p className="text-xs text-muted-foreground -mt-1 mb-2">Unlock stickers as you accuse more!</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {ACCUSER_ACHIEVEMENTS.map((badge) => (
-                  <div key={badge.id} className={`flex items-center gap-3 rounded-lg border p-3 ${badge.color}`}>
-                    <div className="text-3xl flex-shrink-0">{badge.sticker}</div>
-                    <div className="min-w-0">
-                      <div className="font-bold text-sm">{badge.emoji} {badge.title}</div>
-                      <div className="text-xs opacity-80">{badge.minAccusations}+ accusations</div>
-                      <div className="text-[11px] opacity-70 truncate">{badge.description}</div>
+                  <div key={badge.id} className={`flex items-center gap-2 rounded-lg border p-2.5 ${badge.color} overflow-hidden`}>
+                    <div className="text-2xl flex-shrink-0">{badge.sticker}</div>
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="font-bold text-xs sm:text-sm truncate">{badge.emoji} {badge.title}</div>
+                      <div className="text-[10px] sm:text-xs opacity-80">{badge.minAccusations}+ accusations</div>
+                      <div className="text-[10px] opacity-70 truncate hidden sm:block">{badge.description}</div>
                     </div>
                   </div>
                 ))}
