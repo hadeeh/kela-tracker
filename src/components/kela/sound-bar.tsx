@@ -75,7 +75,6 @@ export function SoundBar({ roomCode, memberId, memberName }: Props) {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             🔊 Sound Bar
-            <span className="text-[10px] font-normal text-muted-foreground">(Discord-style)</span>
           </CardTitle>
           <CardDescription className="text-xs">
             When anyone plays a sticker/sound, everyone in the room hears/sees it instantly.

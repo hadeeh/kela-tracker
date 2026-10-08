@@ -678,27 +678,37 @@ export function RoomView({ room, me }: Props) {
             </CardContent>
           </Card>
 
-          {/* Settings */}
+          {/* Rate display — read only for non-ministers, editable for minister */}
           <Card>
             <CardHeader className="pb-2 sm:pb-3">
               <CardTitle className="text-sm sm:text-base">Your Rate</CardTitle>
-              <CardDescription className="text-[11px] sm:text-xs">Fine charged per confirmed kela against you.</CardDescription>
+              <CardDescription className="text-[11px] sm:text-xs">
+                {isMinister ? "Set your fine per kela." : "Only the Kela Minister can change your rate."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-muted-foreground">PKR</span>
-                <Input
-                  type="number"
-                  min={0}
-                  step={5}
-                  value={rateInput}
-                  onChange={(e) => setRateInput(e.target.value)}
-                  className="flex-1"
-                />
-                <Button size="sm" onClick={saveRate} disabled={savingRate}>
-                  {savingRate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                </Button>
-              </div>
+              {isMinister ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">PKR</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={5}
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button size="sm" onClick={saveRate} disabled={savingRate}>
+                    {savingRate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">PKR</span>
+                  <span className="text-lg font-bold">{myRate}</span>
+                  <span className="text-xs text-muted-foreground">per kela</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -822,7 +832,7 @@ export function RoomView({ room, me }: Props) {
           </Card>
         )}
 
-        {/* Sound Bar (Discord-style — everyone hears/sees broadcasts) */}
+        {/* Sound Bar — everyone hears/sees broadcasts */}
         <SoundBar roomCode={room.code} memberId={me.memberId} memberName={me.memberName} />
 
         {/* Leaderboard, Friend Circle, Trials, etc. all in Dashboard tab */}
