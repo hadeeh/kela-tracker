@@ -1,5 +1,5 @@
 #!/bin/bash
-# Generates all Kela Tracker sounds using z-ai TTS (tongtong voice, WAV format).
+# Generates all Kela Tracker sounds using z-ai TTS (male voice, WAV format).
 # Style: short, punchy, game-announcement style — like PUBG "Enemy spotted".
 #
 # Usage:  bash /home/z/my-project/scripts/generate-sounds.sh
@@ -40,7 +40,7 @@ SOUNDS=(
 
 echo "=========================================="
 echo "  Generating ${#SOUNDS[@]} sounds → $OUT_DIR"
-echo "  Voice: tongtong (default)"
+echo "  Voice: male (announcer-style)"
 echo "=========================================="
 
 i=0
@@ -57,18 +57,31 @@ for entry in "${SOUNDS[@]}"; do
   echo "  text:  $text"
   echo "  speed: $speed"
 
-  z-ai tts \
-    --input "$text" \
-    --output "$out" \
-    --voice tongtong \
-    --speed "$speed" \
-    --format wav 2>&1 | tail -3
+  # Retry up to 4 times on rate-limit (429) with increasing backoff
+  attempt=0
+  max_attempts=4
+  while [ $attempt -lt $max_attempts ]; do
+    attempt=$((attempt + 1))
+    if z-ai tts \
+        --input "$text" \
+        --output "$out" \
+        --voice male \
+        --speed "$speed" \
+        --format wav 2>&1 | tail -3 | grep -q "completed\|saved"; then
+      break
+    fi
+    if [ $attempt -lt $max_attempts ]; then
+      wait_sec=$((attempt * 30))
+      echo "  ⏳ rate-limited, waiting ${wait_sec}s before retry $attempt/$max_attempts..."
+      sleep $wait_sec
+    fi
+  done
 
-  if [ -f "$out" ]; then
+  if [ -f "$out" ] && [ $(stat -c%s "$out") -gt 1000 ]; then
     size=$(stat -c%s "$out")
     echo "  ✅ saved ($size bytes)"
   else
-    echo "  ❌ FAILED — no file produced"
+    echo "  ❌ FAILED — no file produced after $max_attempts attempts"
   fi
 done
 
