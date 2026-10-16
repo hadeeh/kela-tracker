@@ -7,13 +7,14 @@
 # Backup: /home/z/my-project/public/sounds/raw-backup/  (originals saved before processing)
 #
 # Pipeline per sound:
-#   1. High-pass 80Hz + low-pass 8kHz  → remove rumble and hiss outside voice band
-#   2. afftdn (FFT denoise, nr=15)     → remove steady background noise
-#   3. adeclick                          → remove clicks/pops
-#   4. agate                             → silence quiet background between words
-#   5. acompressor                       → even out volume, make voice punchier
-#   6. volume                            → boost to near-0dB
-#   7. Comedic kick: synth a short 60-80Hz boom, mix at the punchline timestamp
+#   1. High-pass 80Hz + low-pass 8kHz  → trim band to voice range
+#   2. afftdn (nr=8, no tracking)      → VERY gentle static noise reduction
+#                                         (avoid tn=1 which causes musical noise / screeching)
+#   3. agate (gentle)                   → silence background between words
+#   4. acompressor (soft)               → even out volume
+#   5. volume                            → moderate boost
+#   6. alimiter                          → prevent clipping
+#   7. Comedic kick: synth a short boom with FADE-IN (no click) + FADE-OUT, mixed at punchline
 #
 # Usage:  bash /home/z/my-project/scripts/clean-and-kick-sounds.sh
 
@@ -76,29 +77,28 @@ for entry in "${SOUNDS[@]}"; do
     cp "$src" "$backup"
   fi
 
-  # === Stage 1: Noise reduction + cleanup ===
-  # Filter chain: highpass/lowpass trim band to voice range, adeclick removes pops,
-  # afftdn does FFT noise reduction, agate silences background between words,
-  # acompressor evens out volume, volume boosts.
+  # === Stage 1: Noise reduction + cleanup (gentle, no musical-noise artifacts) ===
+  # Key: do NOT use afftdn with tn=1 (noise tracking) — it causes screechy musical noise on speech.
+  # Instead: light static FFT denoise + gate to silence background between words.
   ffmpeg -y -i "$src" \
-    -af "highpass=f=80,lowpass=f=8000,adeclick,afftdn=nr=15:nf=-30:tn=1,agate=threshold=0.04:range=0.5:attack=10:release=200,acompressor=threshold=0.18:ratio=4:attack=10:release=150:makeup=2,volume=1.5" \
+    -af "highpass=f=80,lowpass=f=8000,adeclick,afftdn=nr=8:nf=-40,agate=threshold=0.025:range=0.7:attack=15:release=250,acompressor=threshold=0.2:ratio=3:attack=20:release=200:makeup=1.5,volume=1.2,alimiter=limit=0.95" \
     "$cleaned_tmp" 2>&1 | tail -1 > /dev/null
 
   # === Stage 2: Add comedic kick (if delay > 0) ===
   if [ "$kick_delay" -gt 0 ]; then
-    # Generate a short boom: low-frequency sine with exponential pitch drop + fast decay
-    # Sound: "BOOM" — like a meme stinger
+    # Generate a short boom: low-frequency sine with FADE-IN (kills click transient)
+    # + exponential FADE-OUT for natural decay
     kick_dur=0.5
     kick_delay_sec=$(python3 -c "print($kick_delay / 1000)")
 
     ffmpeg -y -i "$cleaned_tmp" \
       -f lavfi -t "$kick_dur" -i "sine=frequency=${kick_freq}:duration=${kick_dur}" \
-      -filter_complex "[1:a]volume=${kick_vol},afade=t=out:st=0.05:d=0.45,adelay=${kick_delay}|${kick_delay}[kick];[0:a][kick]amix=inputs=2:duration=first:weights=1 1,acompressor=threshold=0.1:ratio=3:attack=5:release=80,volume=1.4,alimiter=limit=0.95" \
+      -filter_complex "[1:a]afade=t=in:st=0:d=0.02,volume=${kick_vol},afade=t=out:st=0.05:d=0.45,adelay=${kick_delay}|${kick_delay}[kick];[0:a][kick]amix=inputs=2:duration=first:weights=1 0.9,alimiter=limit=0.92" \
       "$out" 2>&1 | tail -1 > /dev/null
   else
     # No kick — just apply final limiter to cleaned audio
     ffmpeg -y -i "$cleaned_tmp" \
-      -af "alimiter=limit=0.95" \
+      -af "alimiter=limit=0.92" \
       "$out" 2>&1 | tail -1 > /dev/null
   fi
 
