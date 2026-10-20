@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getKelaTriggers, getMonthlyTrends, getMostWanted, generatePersona, getCalendarData, type IncidentForStats } from "@/lib/kela-stats";
+import { getKelaTriggers, getMonthlyTrends, getMostWanted, generatePersona, getCalendarData, getDayTotal, type IncidentForStats } from "@/lib/kela-stats";
 
 type Member = { id: string; name: string };
 
@@ -164,11 +164,13 @@ export function KelaStats({ memberId, members, incidents }: Props) {
             ))}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
-              const count = calData[day.toString()] || 0;
+              const dayData = calData[day.toString()];
+              const count = getDayTotal(dayData);
+              const members = dayData ? Object.entries(dayData).sort((a, b) => b[1] - a[1]) : [];
               return (
                 <div
                   key={day}
-                  className={`aspect-square rounded flex flex-col items-center justify-center text-xs border ${
+                  className={`aspect-square rounded flex flex-col items-center justify-center text-xs border p-0.5 overflow-hidden ${
                     count > 0
                       ? count >= 3
                         ? "bg-red-100 border-red-300 text-red-700 font-bold"
@@ -177,10 +179,23 @@ export function KelaStats({ memberId, members, incidents }: Props) {
                         : "bg-yellow-100 border-yellow-300 text-yellow-700"
                       : "bg-card border-border text-muted-foreground"
                   }`}
-                  title={`${count} kela${count !== 1 ? "s" : ""} on ${monthNames[calMonth.month]} ${day}`}
+                  title={members.length > 0
+                    ? `${count} kela${count !== 1 ? "s" : ""} on ${monthNames[calMonth.month]} ${day}:\n` + members.map(([n, c]) => `${n}: ${c}`).join("\n")
+                    : `No kelas on ${monthNames[calMonth.month]} ${day}`}
                 >
-                  <span>{day}</span>
-                  {count > 0 && <span className="text-[9px]">🍌×{count}</span>}
+                  <span className="text-[10px] leading-none">{day}</span>
+                  {members.length > 0 && (
+                    <div className="flex flex-col items-center gap-px mt-0.5 w-full">
+                      {members.slice(0, 2).map(([name, c]) => (
+                        <div key={name} className="text-[8px] leading-tight truncate w-full text-center px-0.5" title={`${name}: ${c} kela${c !== 1 ? "s" : ""}`}>
+                          {name} ×{c}
+                        </div>
+                      ))}
+                      {members.length > 2 && (
+                        <div className="text-[7px] leading-tight opacity-70">+{members.length - 2} more</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

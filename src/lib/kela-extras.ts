@@ -5,6 +5,7 @@ export type IncidentForStats = {
   userId: string;
   accusedById: string;
   verdict: string;
+  reason?: string | null;
   createdAt: string;
   user: { id: string; name: string };
   accusedBy: { id: string; name: string };
@@ -275,4 +276,95 @@ export function sendNotification(title: string, body: string) {
       badge: "/favicon.svg",
     });
   } catch {}
+}
+
+// ---- Kela Memories (Google Photos style "On this day") ----
+// Returns incidents that happened on the same month+day in PREVIOUS years,
+// or earlier in the same year if it's not a same-year match.
+//
+// e.g., if today is Oct 21, 2026, this returns incidents from:
+//   - Oct 21, 2025 (1 year ago)
+//   - Oct 21, 2024 (2 years ago)
+//   - etc.
+//
+// Also surfaces "first kela on this day" milestones: "Exactly 1 year ago today,
+// Huzaifa ate their first kela!"
+//
+// Returns memories sorted by years-ago ascending (most recent year first).
+
+export type KelaMemory = {
+  id: string;
+  memberName: string;
+  accusedByName: string;
+  reason: string | null | undefined;
+  yearsAgo: number;
+  monthsAgo: number;
+  daysAgo: number;
+  originalDate: Date;
+  // A short human label like "1 year ago", "6 months ago", "3 months ago"
+  relativeLabel: string;
+  // Is this the member's FIRST kela overall? (Special milestone highlight)
+  isFirstKela: boolean;
+};
+
+export function getKelaMemories(
+  incidents: IncidentForStats[],
+  now: Date = new Date()
+): KelaMemory[] {
+  const todayMonth = now.getMonth();      // 0-11
+  const todayDate = now.getDate();         // 1-31
+  const todayYear = now.getFullYear();
+
+  // Pre-compute each member's first kela date (for "first kela on this day" highlight)
+  const firstKelaByUser: Record<string, string> = {};
+  for (const inc of incidents) {
+    if (inc.verdict !== "kela") continue;
+    const existing = firstKelaByUser[inc.userId];
+    if (!existing || new Date(inc.createdAt).getTime() < new Date(existing).getTime()) {
+      firstKelaByUser[inc.userId] = inc.createdAt;
+    }
+  }
+
+  const memories: KelaMemory[] = [];
+
+  for (const inc of incidents) {
+    if (inc.verdict !== "kela") continue;
+    const d = new Date(inc.createdAt);
+    // Same month + same day?
+    if (d.getMonth() !== todayMonth || d.getDate() !== todayDate) continue;
+    // Must be from a PREVIOUS year (not today's year — that's not a "memory")
+    if (d.getFullYear() >= todayYear) continue;
+
+    const yearsAgo = todayYear - d.getFullYear();
+    const monthsAgo = yearsAgo * 12 + (todayMonth - d.getMonth());
+    const daysAgo = Math.floor((now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000));
+
+    // Build relative label
+    let relativeLabel: string;
+    if (yearsAgo === 1) relativeLabel = "1 year ago";
+    else if (yearsAgo > 1) relativeLabel = `${yearsAgo} years ago`;
+    else if (monthsAgo === 1) relativeLabel = "1 month ago";
+    else if (monthsAgo > 1) relativeLabel = `${monthsAgo} months ago`;
+    else if (daysAgo === 1) relativeLabel = "yesterday";
+    else relativeLabel = `${daysAgo} days ago`;
+
+    const isFirstKela = firstKelaByUser[inc.userId] === inc.createdAt;
+
+    memories.push({
+      id: inc.id,
+      memberName: inc.user.name,
+      accusedByName: inc.accusedBy.name,
+      reason: inc.reason,
+      yearsAgo,
+      monthsAgo,
+      daysAgo,
+      originalDate: d,
+      relativeLabel,
+      isFirstKela,
+    });
+  }
+
+  // Sort by years-ago ascending (most recent year first)
+  memories.sort((a, b) => a.yearsAgo - b.yearsAgo);
+  return memories;
 }

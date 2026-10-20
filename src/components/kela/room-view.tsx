@@ -45,6 +45,7 @@ import { SoundBar } from "./sound-bar";
 import { EaterBadgeSounds } from "./eater-badge-sounds";
 import { useConfirmDialog } from "./use-confirm-dialog";
 import { AssetHistoryPanel } from "./asset-history-panel";
+import { KelaMemories } from "./kela-memories";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; status: string; joinedAt: string };
@@ -875,6 +876,9 @@ export function RoomView({ room, me }: Props) {
         {/* ============ DASHBOARD TAB ============ */}
         {activeTab === "dashboard" && (
         <>
+        {/* Kela Memories — "On this day" Google-Photos-style card (top of dashboard) */}
+        <KelaMemories incidents={incidents as any} />
+
         {/* Pending Requests — only visible to the Kela Minister */}
         {isMinister && members.filter((m) => m.status === "pending").length > 0 && (
           <Card className="border-orange-300 bg-orange-50">

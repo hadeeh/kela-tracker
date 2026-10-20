@@ -5,6 +5,7 @@ export type IncidentForStats = {
   userId: string;
   accusedById: string;
   verdict: string;
+  reason?: string | null;
   createdAt: string;
   user: { id: string; name: string };
   accusedBy: { id: string; name: string };
@@ -197,17 +198,27 @@ export function getMonthlyTrends(incidents: IncidentForStats[]) {
 // ---- Calendar View ----
 // Returns a map of date -> count for all guilty incidents
 export function getCalendarData(incidents: IncidentForStats[], year: number, month: number) {
-  const data: Record<string, number> = {};
+  // Returns: { [day: string]: { [memberName: string]: number } }
+  // e.g., { "15": { "Huzaifa": 2, "Ali": 1 } }
+  const data: Record<string, Record<string, number>> = {};
   incidents
     .filter((i) => i.verdict === "kela")
     .forEach((i) => {
       const d = new Date(i.createdAt);
       if (d.getFullYear() === year && d.getMonth() === month) {
         const key = d.getDate().toString();
-        data[key] = (data[key] || 0) + 1;
+        if (!data[key]) data[key] = {};
+        const name = i.user.name;
+        data[key][name] = (data[key][name] || 0) + 1;
       }
     });
   return data;
+}
+
+// Helper: get total kela count for a day from the new calendar data structure
+export function getDayTotal(dayData: Record<string, number> | undefined): number {
+  if (!dayData) return 0;
+  return Object.values(dayData).reduce((sum, n) => sum + n, 0);
 }
 
 // ---- Walk of Shame ----
