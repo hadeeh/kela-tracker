@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Upload, Trash2, Play, Volume2, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { useSounds, refreshRoomSounds, type SoundName } from "./use-sounds";
+import { useConfirmDialog } from "./use-confirm-dialog";
 
 type SoundConfig = {
   type: SoundName;
@@ -40,6 +41,7 @@ type Props = {
 
 export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
   const { play } = useSounds();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [uploading, setUploading] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [customStatus, setCustomStatus] = useState<Record<string, boolean>>({});
@@ -92,6 +94,15 @@ export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
   }
 
   async function handleReset(type: SoundName) {
+    const label = SOUND_CONFIGS.find((c) => c.type === type)?.label ?? type;
+    const ok = await confirm({
+      title: `Reset "${label}" sound?`,
+      description: `This restores the default built-in sound for "${label}". Your uploaded custom sound will be permanently removed.`,
+      confirmLabel: "Reset to default",
+      cancelLabel: "Keep custom",
+      danger: true,
+    });
+    if (!ok) return;
     setDeleting(type);
     try {
       const res = await fetch(`/api/rooms/${roomCode}/sounds`, {
@@ -104,7 +115,7 @@ export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
         toast.error(data?.error || "Reset failed.");
         return;
       }
-      toast.success(`${SOUND_CONFIGS.find((c) => c.type === type)?.label} reset to default.`);
+      toast.success(`${label} reset to default.`);
       refreshRoomSounds(roomCode);
       await loadStatus();
       onSoundsChanged();
@@ -283,6 +294,7 @@ export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
           💡 <b>Tip:</b> Upload short audio clips (1-5 seconds) for the best experience. Max 2MB per file. Supported formats: WAV, MP3, OGG, M4A, WebM.
         </div>
       </CardContent>
+      {confirmDialog}
     </Card>
   );
 }

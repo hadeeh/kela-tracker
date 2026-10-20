@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Upload, Trash2, Play } from "lucide-react";
 import { toast } from "sonner";
 import { EATER_BADGE_REWARDS } from "@/lib/badges";
+import { useConfirmDialog } from "./use-confirm-dialog";
 
 type Props = {
   roomCode: string;
@@ -21,6 +22,7 @@ export function EaterBadgeSounds({ roomCode, memberId, isMinister, kelaCount }: 
   const [uploading, setUploading] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const soundRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   useEffect(() => {
     loadRewards();
@@ -67,6 +69,16 @@ export function EaterBadgeSounds({ roomCode, memberId, isMinister, kelaCount }: 
   }
 
   async function handleDelete(badgeId: string) {
+    const badgeInfo = EATER_BADGE_REWARDS.find((b) => b.id === badgeId);
+    const label = badgeInfo ? `${badgeInfo.emoji} ${badgeInfo.title}` : badgeId;
+    const ok = await confirm({
+      title: `Remove sound for ${label}?`,
+      description: `The custom sound for this badge tier will be permanently removed. Members who unlock this badge will no longer hear a custom sound.`,
+      confirmLabel: "Remove sound",
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!ok) return;
     setDeleting(badgeId);
     try {
       const res = await fetch(`/api/rooms/${roomCode}/achievements`, {
@@ -163,6 +175,7 @@ export function EaterBadgeSounds({ roomCode, memberId, isMinister, kelaCount }: 
           💡 Upload a sound for each badge tier. When someone earns a badge, the sound appears in their Sound Bar — they can play it locally or broadcast to the whole room!
         </div>
       </CardContent>
+      {confirmDialog}
     </Card>
   );
 }

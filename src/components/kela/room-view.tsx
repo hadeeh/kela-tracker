@@ -587,7 +587,15 @@ export function RoomView({ room, me }: Props) {
     requestNotificationPermission();
   }, []);
 
-  function handleLeave() {
+  async function handleLeave() {
+    const ok = await confirm({
+      title: "Leave this room?",
+      description: `You'll lose access to "${room.name}" until you rejoin with the room code. Your kela history, fines, and badges stay in the room ledger — only your local session is cleared.`,
+      confirmLabel: "Yes, leave room",
+      cancelLabel: "Stay",
+      danger: true,
+    });
+    if (!ok) return;
     localStorage.removeItem(`kela:${room.code}`);
     router.push("/");
   }

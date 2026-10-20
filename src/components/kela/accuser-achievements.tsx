@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Upload, Trash2, Play } from "lucide-react";
 import { toast } from "sonner";
 import { getAccuserAchievements, getNextAccuserAchievement, ACCUSER_ACHIEVEMENTS } from "@/lib/badges";
+import { useConfirmDialog } from "./use-confirm-dialog";
 
 type Props = {
   accusationCount: number;
@@ -24,6 +25,7 @@ export function AccuserAchievements({ accusationCount, roomCode, memberId, isMin
   const [deleting, setDeleting] = useState<string | null>(null);
   const stickerRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const soundRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const achievements = getAccuserAchievements(accusationCount);
   const nextAchievement = getNextAccuserAchievement(accusationCount);
@@ -77,6 +79,40 @@ export function AccuserAchievements({ accusationCount, roomCode, memberId, isMin
   }
 
   async function handleDelete(achievementId: string, type: "sticker" | "sound") {
+    const achInfo = ACCUSER_ACHIEVEMENTS.find((a) => a.id === achievementId);
+    const label = achInfo ? `${achInfo.sticker} ${achInfo.title}` : achievementId;
+    const ok = await confirm({
+      title: `Remove ${type} for ${label}?`,
+      description: `The custom ${type} for this achievement tier will be permanently removed. Members who unlock this tier will no longer see/hear it.`,
+      confirmLabel: `Remove ${type}`,
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!ok) return;
+    await doDelete(achievementId, type);
+  }
+
+  // Bulk remove both sticker + sound for a tier — single confirm for both.
+  async function handleRemoveAll(achievementId: string, hasSticker: boolean, hasSound: boolean) {
+    const achInfo = ACCUSER_ACHIEVEMENTS.find((a) => a.id === achievementId);
+    const label = achInfo ? `${achInfo.sticker} ${achInfo.title}` : achievementId;
+    const parts: string[] = [];
+    if (hasSticker) parts.push("sticker");
+    if (hasSound) parts.push("sound");
+    const ok = await confirm({
+      title: `Remove ${parts.join(" + ")} for ${label}?`,
+      description: `The custom ${parts.join(" and ")} for this achievement tier will be permanently removed. Members who unlock this tier will no longer see/hear them.`,
+      confirmLabel: `Remove ${parts.join(" + ")}`,
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!ok) return;
+    if (hasSticker) await doDelete(achievementId, "sticker");
+    if (hasSound) await doDelete(achievementId, "sound");
+  }
+
+  // Internal: no confirm — just performs the DELETE call.
+  async function doDelete(achievementId: string, type: "sticker" | "sound") {
     setDeleting(`${achievementId}-${type}`);
     try {
       const res = await fetch(`/api/rooms/${roomCode}/achievements`, {
@@ -229,10 +265,7 @@ export function AccuserAchievements({ accusationCount, roomCode, memberId, isMin
                       </button>
                       {hasAnything && (
                         <button
-                          onClick={() => {
-                            if (reward.stickerUrl) handleDelete(a.id, "sticker");
-                            if (reward.soundUrl) handleDelete(a.id, "sound");
-                          }}
+                          onClick={() => handleRemoveAll(a.id, !!reward.stickerUrl, !!reward.soundUrl)}
                           disabled={deleting === `${a.id}-sticker` || deleting === `${a.id}-sound`}
                           className="text-[10px] px-1.5 py-1 rounded-md border text-red-600 hover:bg-red-50 font-semibold disabled:opacity-50"
                           title="Remove all uploaded assets"
@@ -316,6 +349,7 @@ export function AccuserAchievements({ accusationCount, roomCode, memberId, isMin
           </div>
         )}
       </CardContent>
+      {confirmDialog}
     </Card>
   );
 }
