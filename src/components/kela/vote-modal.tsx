@@ -24,9 +24,10 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
   const totalVotes = votesYes + votesNo;
 
   return (
-    <Dialog open={open}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o && onClose) onClose(); }}>
       <DialogContent
         className="sm:max-w-md max-h-[90vh] overflow-y-auto"
+        showCloseButton={false}
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >

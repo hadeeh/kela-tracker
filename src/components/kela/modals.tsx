@@ -34,7 +34,7 @@ export function AccusedModal({ open, activeVote, onSubmitDefense, submittingDefe
   if (!activeVote) return null;
 
   return (
-    <Dialog open={open}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="text-center text-xl flex items-center justify-center gap-2">
@@ -117,7 +117,7 @@ export function ResultModal({ open, endedVote, onClose }: ResultProps) {
   const isTie = endedVote.verdict === "tie";
 
   return (
-    <Dialog open={open}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-center text-2xl flex items-center justify-center gap-2">
