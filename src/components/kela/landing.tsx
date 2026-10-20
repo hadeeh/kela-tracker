@@ -194,7 +194,7 @@ export function Landing() {
                       <Label htmlFor="joinName" className="text-xs">Your Name</Label>
                       <Input
                         id="joinName"
-                        placeholder="e.g. Bilal"
+                        placeholder="e.g. Huzaifa"
                         value={joinName}
                         onChange={(e) => setJoinName(e.target.value)}
                         maxLength={40}

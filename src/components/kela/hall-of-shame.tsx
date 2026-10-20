@@ -156,7 +156,7 @@ export function HallOfShame({ roomCode, memberId, members }: Props) {
               <div>
                 <Label className="text-xs">Caption (optional)</Label>
                 <Input
-                  placeholder="e.g. Bilal's 5th kela today!"
+                  placeholder="e.g. Huzaifa's 5th kela today!"
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
                   maxLength={200}

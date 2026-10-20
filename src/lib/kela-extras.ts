@@ -98,7 +98,7 @@ export function getAccuserStreak(memberId: string, incidents: IncidentForStats[]
 }
 
 // ---- Kela Anniversaries ----
-// Returns milestone info: "Bilal's 1st kela was 30 days ago!"
+// Returns milestone info: "Huzaifa's 1st kela was 30 days ago!"
 export function getAnniversaries(
   incidents: IncidentForStats[],
   members: { id: string; name: string }[]
@@ -147,7 +147,7 @@ export function getAnniversaries(
 }
 
 // ---- Head-to-Head Record ----
-// Returns: "Ali accused Bilal X times, Y guilty. Bilal accused Ali Z times, W guilty."
+// Returns: "Ali accused Huzaifa X times, Y guilty. Huzaifa accused Ali Z times, W guilty."
 export function getHeadToHead(
   memberAId: string,
   memberBId: string,

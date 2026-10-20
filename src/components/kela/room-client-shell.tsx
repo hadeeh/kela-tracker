@@ -147,7 +147,7 @@ export function RoomClientShell({ room }: { room: Room }) {
                 <Label htmlFor="joinName">Your Name</Label>
                 <Input
                   id="joinName"
-                  placeholder="e.g. Bilal"
+                  placeholder="e.g. Huzaifa"
                   value={joinName}
                   onChange={(e) => setJoinName(e.target.value)}
                   maxLength={40}
