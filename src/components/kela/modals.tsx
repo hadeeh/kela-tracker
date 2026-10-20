@@ -15,9 +15,11 @@ type Props = {
   onSubmitDefense: (defense: string) => void;
   submittingDefense: boolean;
   onClose: () => void;
+  isMinister?: boolean;
+  onSettle?: (action: "kela" | "saeb" | "tie" | "cancel") => void;
 };
 
-export function AccusedModal({ open, activeVote, onSubmitDefense, submittingDefense, onClose }: Props) {
+export function AccusedModal({ open, activeVote, onSubmitDefense, submittingDefense, onClose, isMinister, onSettle }: Props) {
   const [defense, setDefense] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
@@ -90,6 +92,25 @@ export function AccusedModal({ open, activeVote, onSubmitDefense, submittingDefe
               <div className="text-xs font-bold text-blue-700 uppercase mb-1">🛡️ Your Defense</div>
               <div className="text-sm text-blue-900 italic">"{defense}"</div>
               <div className="text-[10px] text-blue-600 mt-1">✓ Submitted — voters can see it now</div>
+            </div>
+          )}
+
+          {/* Minister controls — even when accused, the minister can end the vote
+              (e.g., to cancel a malicious accusation against themselves) */}
+          {isMinister && onSettle && activeVote && (
+            <div className="border-t pt-3 mt-2">
+              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1.5 text-center">
+                ⚡ Minister Controls <span className="text-yellow-700">(you can end this vote)</span>
+              </div>
+              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                <Button size="sm" variant="outline" className="h-7 text-[10px] bg-yellow-50" onClick={() => onSettle("kela")}>🍌 Force Kela</Button>
+                <Button size="sm" variant="outline" className="h-7 text-[10px] bg-red-50" onClick={() => onSettle("saeb")}>🍎 Force Saeb</Button>
+                <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => onSettle("tie")}>🤷 Force Tie</Button>
+                <Button size="sm" variant="outline" className="h-7 text-[10px] text-red-600" onClick={() => onSettle("cancel")}>✕ Cancel Vote</Button>
+              </div>
+              <p className="text-[9px] text-muted-foreground text-center mt-1">
+                As minister, you can end this vote even though you&apos;re the accused — useful for cancelling malicious accusations.
+              </p>
             </div>
           )}
 

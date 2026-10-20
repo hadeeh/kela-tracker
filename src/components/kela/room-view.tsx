@@ -1766,6 +1766,8 @@ export function RoomView({ room, me }: Props) {
         activeVote={activeVote}
         onSubmitDefense={handleSubmitDefense}
         submittingDefense={submittingDefense}
+        isMinister={isMinister}
+        onSettle={handleSettleVote}
         onClose={() => {
           userClosedAccusedRef.current = true;
           setAccusedOpen(false);
