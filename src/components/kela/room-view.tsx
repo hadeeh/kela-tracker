@@ -44,6 +44,7 @@ import { QuickAccusePicker } from "./quick-accuse-picker";
 import { SoundBar } from "./sound-bar";
 import { EaterBadgeSounds } from "./eater-badge-sounds";
 import { useConfirmDialog } from "./use-confirm-dialog";
+import { AssetHistoryPanel } from "./asset-history-panel";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; status: string; joinedAt: string };
@@ -118,7 +119,7 @@ export function RoomView({ room, me }: Props) {
   const [quickAccuseOpen, setQuickAccuseOpen] = useState(false);
 
   // ---- Tab navigation ----
-  const [activeTab, setActiveTab] = useState<"dashboard" | "achievements" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "achievements" | "settings" | "history">("dashboard");
 
   // ---- Defense modal (I'm the accused — must defend before vote starts) ----
   const [defenseOpen, setDefenseOpen] = useState(false);
@@ -675,9 +676,19 @@ export function RoomView({ room, me }: Props) {
               <div className="min-w-0 flex-1">
                 <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-yellow-950 truncate">{room.name}</h1>
                 <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
-                  Hi, {me.memberName}{isMinister && <span className="text-yellow-700 font-semibold"> 👑</span>} · Code: <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>
+                  Hi, {me.memberName} · Code: <button onClick={copyInviteLink} className="font-mono font-semibold text-yellow-800 hover:underline">{room.code}</button>
                 </p>
               </div>
+              {/* Role badge — clearly shows if user is minister or member */}
+              {isMinister ? (
+                <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-400 text-yellow-950 text-[10px] sm:text-xs font-bold border border-yellow-500 shadow-sm" title="You are the Kela Minister — you can manage sounds, members, and settle votes">
+                  👑 Minister
+                </span>
+              ) : (
+                <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/70 text-yellow-900 text-[10px] sm:text-xs font-medium border border-yellow-300" title="You are a room member">
+                  👤 Member
+                </span>
+              )}
             </header>
           </div>
 
@@ -688,6 +699,7 @@ export function RoomView({ room, me }: Props) {
                 {([
                   { id: "dashboard", emoji: "📊", label: "Dashboard" },
                   { id: "achievements", emoji: "🏆", label: "Achievements" },
+                  { id: "history", emoji: "📜", label: "History" },
                   { id: "settings", emoji: "⚙️", label: "Settings" },
                 ] as const).map((tab) => (
                   <button
@@ -1446,6 +1458,16 @@ export function RoomView({ room, me }: Props) {
             members={members.filter((m) => m.status === "approved").map((m) => ({ id: m.id, name: m.name }))}
           />
         </>
+        )}
+
+        {/* ============ HISTORY TAB ============ */}
+        {activeTab === "history" && (
+          <AssetHistoryPanel
+            roomCode={room.code}
+            memberId={me.memberId}
+            isMinister={isMinister}
+            onAssetsChanged={refreshData}
+          />
         )}
 
         {/* ============ SETTINGS TAB ============ */}
