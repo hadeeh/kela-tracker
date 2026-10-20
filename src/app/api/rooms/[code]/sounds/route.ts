@@ -61,6 +61,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const buffer = Buffer.from(await file.arrayBuffer());
     const mimeType = file.type || "audio/wav";
 
+    // Push existing sound to version history BEFORE overwriting.
+    const existing = await db.customSound.findUnique({
+      where: { roomId_soundType: { roomId: room.id, soundType } },
+    });
+    if (existing) {
+      await db.assetVersion.create({
+        data: {
+          roomId: room.id,
+          assetKey: `sound:${soundType}`,
+          data: existing.data,
+          mimeType: existing.mimeType,
+          fileName: existing.fileName,
+          uploadedBy: memberId,
+        },
+      });
+    }
+
     // Upsert (replace if exists)
     await db.customSound.upsert({
       where: { roomId_soundType: { roomId: room.id, soundType } },

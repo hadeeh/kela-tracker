@@ -21,6 +21,7 @@ model Room {
   sounds    CustomSound[]
   mugshots  Mugshot[]
   achievementRewards AchievementReward[]
+  assetVersions AssetVersion[]
 }
 
 model RoomMember {
@@ -132,4 +133,33 @@ model CustomSound {
 
   @@unique([roomId, soundType])
   @@index([roomId])
+}
+
+// Asset version history — keeps every previous version of a sound or sticker
+// so the minister can revert to an earlier upload.
+//
+// assetKey uniquely identifies the asset slot:
+//   "sound:vote-start"         → custom vote sound
+//   "sound:kela-vote"
+//   "sound:badge-rookie"       → eater badge sound (stored in AchievementReward)
+//   "sound:first-blood"        → accuser achievement sound (AchievementReward)
+//   "sticker:first-blood"      → accuser achievement sticker (AchievementReward)
+//
+// When a new upload replaces existing data, the OLD data is pushed here first.
+// Reverting copies a version back to the live table and pushes the current
+// (about-to-be-replaced) data here, so the timeline is preserved bidirectionally.
+model AssetVersion {
+  id          String   @id @default(cuid())
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  assetKey    String
+  data        Bytes
+  mimeType    String
+  fileName    String?
+  uploadedBy  String?  // member ID of who uploaded (for attribution)
+  note        String?  // optional label like "v2 — louder mix"
+  createdAt   DateTime @default(now())
+
+  @@index([roomId, assetKey])
+  @@index([createdAt])
 }

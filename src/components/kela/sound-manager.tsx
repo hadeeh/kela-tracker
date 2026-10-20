@@ -4,10 +4,11 @@ import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Upload, Trash2, Play, Volume2, Crown } from "lucide-react";
+import { Loader2, Upload, Trash2, Play, Volume2, Crown, History } from "lucide-react";
 import { toast } from "sonner";
 import { useSounds, refreshRoomSounds, type SoundName } from "./use-sounds";
 import { useConfirmDialog } from "./use-confirm-dialog";
+import { AssetHistoryDialog } from "./asset-history-dialog";
 
 type SoundConfig = {
   type: SoundName;
@@ -45,6 +46,7 @@ export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [customStatus, setCustomStatus] = useState<Record<string, boolean>>({});
+  const [historyOpenFor, setHistoryOpenFor] = useState<SoundConfig | null>(null);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Load custom sound status
@@ -213,6 +215,15 @@ export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
                   Reset
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setHistoryOpenFor(config)}
+                title="View previous uploads and revert"
+              >
+                <History className="h-4 w-4 mr-1" />
+                History
+              </Button>
             </div>
           </div>
         ))}
@@ -286,6 +297,15 @@ export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
                   Reset
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setHistoryOpenFor(config)}
+                title="View previous uploads and revert"
+              >
+                <History className="h-4 w-4 mr-1" />
+                History
+              </Button>
             </div>
           </div>
         ))}
@@ -295,6 +315,22 @@ export function SoundManager({ roomCode, memberId, onSoundsChanged }: Props) {
         </div>
       </CardContent>
       {confirmDialog}
+      {historyOpenFor && (
+        <AssetHistoryDialog
+          open={!!historyOpenFor}
+          onClose={() => setHistoryOpenFor(null)}
+          roomCode={roomCode}
+          memberId={memberId}
+          assetKey={`sound:${historyOpenFor.type}`}
+          assetLabel={historyOpenFor.label}
+          previewType="audio"
+          onReverted={() => {
+            refreshRoomSounds(roomCode);
+            loadStatus();
+            onSoundsChanged();
+          }}
+        />
+      )}
     </Card>
   );
 }

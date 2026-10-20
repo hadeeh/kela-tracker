@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload, Trash2, Play } from "lucide-react";
+import { Loader2, Upload, Trash2, Play, History } from "lucide-react";
 import { toast } from "sonner";
 import { EATER_BADGE_REWARDS } from "@/lib/badges";
 import { useConfirmDialog } from "./use-confirm-dialog";
+import { AssetHistoryDialog } from "./asset-history-dialog";
 
 type Props = {
   roomCode: string;
@@ -23,6 +24,7 @@ export function EaterBadgeSounds({ roomCode, memberId, isMinister, kelaCount }: 
   const [deleting, setDeleting] = useState<string | null>(null);
   const soundRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
+  const [historyOpenFor, setHistoryOpenFor] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     loadRewards();
@@ -165,6 +167,13 @@ export function EaterBadgeSounds({ roomCode, memberId, isMinister, kelaCount }: 
                       {deleting === badge.id ? <Loader2 className="h-2.5 w-2.5 animate-spin inline" /> : "✕"}
                     </button>
                   )}
+                  <button
+                    onClick={() => setHistoryOpenFor({ id: badge.id, title: badge.title })}
+                    className="text-[10px] px-1.5 py-1 rounded border hover:bg-white/50"
+                    title="View previous uploads and revert"
+                  >
+                    📜
+                  </button>
                 </div>
               </div>
             );
@@ -176,6 +185,18 @@ export function EaterBadgeSounds({ roomCode, memberId, isMinister, kelaCount }: 
         </div>
       </CardContent>
       {confirmDialog}
+      {historyOpenFor && (
+        <AssetHistoryDialog
+          open={!!historyOpenFor}
+          onClose={() => setHistoryOpenFor(null)}
+          roomCode={roomCode}
+          memberId={memberId}
+          assetKey={`sound:${historyOpenFor.id}`}
+          assetLabel={`🍌 ${historyOpenFor.title} sound`}
+          previewType="audio"
+          onReverted={loadRewards}
+        />
+      )}
     </Card>
   );
 }

@@ -55,7 +55,10 @@ export async function POST(
     // 4. Delete custom sounds in this room
     await db.customSound.deleteMany({ where: { roomId: room.id } });
 
-    // 5. Optionally remove all members except the minister
+    // 5. Delete asset version history in this room (sound/sticker upload history)
+    await db.assetVersion.deleteMany({ where: { roomId: room.id } });
+
+    // 6. Optionally remove all members except the minister
     if (!keepMembers) {
       await db.roomMember.deleteMany({
         where: { roomId: room.id, id: { not: memberId } },

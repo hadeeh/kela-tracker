@@ -8,6 +8,7 @@ import { Loader2, Upload, Trash2, Play } from "lucide-react";
 import { toast } from "sonner";
 import { getAccuserAchievements, getNextAccuserAchievement, ACCUSER_ACHIEVEMENTS } from "@/lib/badges";
 import { useConfirmDialog } from "./use-confirm-dialog";
+import { AssetHistoryDialog } from "./asset-history-dialog";
 
 type Props = {
   accusationCount: number;
@@ -26,6 +27,7 @@ export function AccuserAchievements({ accusationCount, roomCode, memberId, isMin
   const stickerRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const soundRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
+  const [historyOpenFor, setHistoryOpenFor] = useState<{ assetKey: string; label: string; previewType: "audio" | "image" } | null>(null);
 
   const achievements = getAccuserAchievements(accusationCount);
   const nextAchievement = getNextAccuserAchievement(accusationCount);
@@ -263,6 +265,20 @@ export function AccuserAchievements({ accusationCount, roomCode, memberId, isMin
                         Sound
                         {reward.soundUrl && <span className="text-green-600 ml-0.5">✓</span>}
                       </button>
+                      <button
+                        onClick={() => setHistoryOpenFor({ assetKey: `sticker:${a.id}`, label: `${a.sticker} ${a.title} sticker`, previewType: "image" })}
+                        className="text-[10px] px-1.5 py-1 rounded-md border hover:bg-white/50 font-semibold"
+                        title="Sticker history & revert"
+                      >
+                        📜
+                      </button>
+                      <button
+                        onClick={() => setHistoryOpenFor({ assetKey: `sound:${a.id}`, label: `${a.sticker} ${a.title} sound`, previewType: "audio" })}
+                        className="text-[10px] px-1.5 py-1 rounded-md border hover:bg-white/50 font-semibold"
+                        title="Sound history & revert"
+                      >
+                        📜
+                      </button>
                       {hasAnything && (
                         <button
                           onClick={() => handleRemoveAll(a.id, !!reward.stickerUrl, !!reward.soundUrl)}
@@ -345,11 +361,23 @@ export function AccuserAchievements({ accusationCount, roomCode, memberId, isMin
 
         {isMinister && (
           <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-2 text-[10px] text-yellow-800">
-            💡 Uploaded stickers appear in the grid above for users who unlock that tier. They can tap <b>📢 Show</b> or <b>📢 Play</b> to broadcast to everyone in the room.
+            💡 Uploaded stickers appear in the grid above for users who unlock that tier. They can tap <b>📢 Show</b> or <b>📢 Play</b> to broadcast to everyone in the room. Use the 📜 buttons to view upload history and revert.
           </div>
         )}
       </CardContent>
       {confirmDialog}
+      {historyOpenFor && (
+        <AssetHistoryDialog
+          open={!!historyOpenFor}
+          onClose={() => setHistoryOpenFor(null)}
+          roomCode={roomCode}
+          memberId={memberId}
+          assetKey={historyOpenFor.assetKey}
+          assetLabel={historyOpenFor.label}
+          previewType={historyOpenFor.previewType}
+          onReverted={loadRewards}
+        />
+      )}
     </Card>
   );
 }

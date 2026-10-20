@@ -68,6 +68,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       return NextResponse.json({ error: "Only the Kela Minister can upload achievement rewards." }, { status: 403 });
     }
 
+    // Push existing sticker/sound to version history BEFORE overwriting.
+    // assetKey convention: "sticker:<achievementId>" or "sound:<achievementId>"
+    const existing = await db.achievementReward.findUnique({
+      where: { roomId_achievementId: { roomId: room.id, achievementId } },
+    });
+    if (existing) {
+      if (stickerFile && existing.stickerData) {
+        await db.assetVersion.create({
+          data: {
+            roomId: room.id,
+            assetKey: `sticker:${achievementId}`,
+            data: existing.stickerData,
+            mimeType: existing.stickerMime || "image/png",
+            fileName: null,
+            uploadedBy: memberId,
+          },
+        });
+      }
+      if (soundFile && existing.soundData) {
+        await db.assetVersion.create({
+          data: {
+            roomId: room.id,
+            assetKey: `sound:${achievementId}`,
+            data: existing.soundData,
+            mimeType: existing.soundMime || "audio/wav",
+            fileName: null,
+            uploadedBy: memberId,
+          },
+        });
+      }
+    }
+
     const updateData: any = {};
     if (stickerFile) {
       if (stickerFile.size > MAX_FILE_SIZE) return NextResponse.json({ error: "Sticker too large. Max 2MB." }, { status: 400 });
