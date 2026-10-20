@@ -469,5 +469,6 @@ function VerdictBadge({ verdict }: { verdict: string }) {
   if (verdict === "kela") return <Badge className="bg-yellow-400 hover:bg-yellow-400 text-yellow-950">🍌 Kela</Badge>;
   if (verdict === "saeb") return <Badge variant="outline" className="border-red-300 text-red-700">🍎 Saeb</Badge>;
   if (verdict === "tie") return <Badge variant="secondary">🤷 Tie</Badge>;
+  if (verdict === "cancelled") return <Badge variant="outline" className="border-gray-300 text-gray-600">✕ Cancelled</Badge>;
   return <Badge variant="secondary">⏳ Pending</Badge>;
 }

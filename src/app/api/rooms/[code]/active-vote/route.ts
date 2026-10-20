@@ -100,12 +100,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       });
     }
 
-    // 2. No pending incident — check for a recently ended one (within last 15 seconds)
+    // 2. No pending incident — check for a recently ended one (within last 15 seconds).
+    //    Includes cancelled votes so the result modal can show "Vote Cancelled".
     const recentEnded = await db.kelaIncident.findFirst({
       where: {
         roomId: room.id,
-        status: "completed",
-        verdict: { in: ["kela", "saeb", "tie"] },
+        status: { in: ["completed", "cancelled"] },
+        verdict: { in: ["kela", "saeb", "tie", "cancelled"] },
         createdAt: { gt: new Date(Date.now() - 15_000) },
       },
       orderBy: { createdAt: "desc" },
@@ -128,7 +129,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
           defense: recentEnded.defense,
           votesYes: recentEnded.votesYes,
           votesNo: recentEnded.votesNo,
-          verdict: recentEnded.verdict as "kela" | "saeb" | "tie",
+          verdict: recentEnded.verdict as "kela" | "saeb" | "tie" | "cancelled",
           isAccusedMe: recentEnded.userId === memberId,
         },
       });

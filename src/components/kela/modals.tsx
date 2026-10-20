@@ -115,6 +115,7 @@ export function ResultModal({ open, endedVote, onClose }: ResultProps) {
   const isGuilty = endedVote.verdict === "kela";
   const isInnocent = endedVote.verdict === "saeb";
   const isTie = endedVote.verdict === "tie";
+  const isCancelled = endedVote.verdict === "cancelled";
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -124,8 +125,9 @@ export function ResultModal({ open, endedVote, onClose }: ResultProps) {
             {isGuilty && <span className="text-4xl">🍌</span>}
             {isInnocent && <span className="text-4xl">🍎</span>}
             {isTie && <span className="text-4xl">🤷</span>}
+            {isCancelled && <span className="text-4xl">✕</span>}
             <span>
-              {isGuilty ? "Kela Confirmed!" : isInnocent ? "Saeb! Innocent!" : "It's a Tie!"}
+              {isGuilty ? "Kela Confirmed!" : isInnocent ? "Saeb! Innocent!" : isTie ? "It's a Tie!" : "Vote Cancelled"}
             </span>
           </DialogTitle>
           <DialogDescription className="text-center pt-2">
@@ -134,7 +136,11 @@ export function ResultModal({ open, endedVote, onClose }: ResultProps) {
                 ? "You ate kela. Fine added. 💸"
                 : isInnocent
                 ? "Phew! You're off the hook."
-                : "Jury couldn't decide. No fine."
+                : isTie
+                ? "Jury couldn't decide. No fine."
+                : "The minister cancelled the vote. No verdict, no fine."
+              : isCancelled
+              ? `The minister cancelled the vote against ${endedVote.accusedName}. No verdict was recorded.`
               : `${endedVote.accusedName} ${isGuilty ? "is guilty" : isInnocent ? "is innocent" : "got a tie"}.`}
           </DialogDescription>
         </DialogHeader>

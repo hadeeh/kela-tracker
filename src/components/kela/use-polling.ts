@@ -30,7 +30,7 @@ export type EndedVote = {
   defense: string | null;
   votesYes: number;
   votesNo: number;
-  verdict: "kela" | "saeb" | "tie";
+  verdict: "kela" | "saeb" | "tie" | "cancelled";
   isAccusedMe: boolean;
 };
 

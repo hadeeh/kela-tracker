@@ -164,10 +164,11 @@ export function RoomView({ room, me }: Props) {
     userClosedVoteRef.current = false; // vote ended → reset manual-close flag
     setResultOpen(true);
 
-    // Play verdict sound
+    // Play verdict sound (skip for cancelled — no verdict to celebrate)
     if (ev.verdict === "kela") play("result-kela");
     else if (ev.verdict === "saeb") play("result-saeb");
-    else play("result-tie");
+    else if (ev.verdict === "tie") play("result-tie");
+    // cancelled → no sound
 
     // Check for badge level-up (only on "kela" verdict)
     if (ev.verdict === "kela") {
@@ -194,8 +195,11 @@ export function RoomView({ room, me }: Props) {
       toast.success(`🍌 ${ev.accusedName} confirmed kela! Fine added.`);
     } else if (ev.verdict === "saeb") {
       toast.info(`🍎 ${ev.accusedName} is innocent. Saeb!`);
-    } else {
+    } else if (ev.verdict === "tie") {
       toast.message(`🤷 It's a tie for ${ev.accusedName}.`);
+    } else {
+      // cancelled
+      toast.message(`✕ Vote against ${ev.accusedName} was cancelled.`);
     }
   }, [play, incidents]);
 
@@ -542,17 +546,18 @@ export function RoomView({ room, me }: Props) {
   // Minister: force-settle an active vote
   async function handleSettleVote(action: "kela" | "saeb" | "tie" | "cancel") {
     if (!activeVote) return;
-    const confirmMsg = action === "cancel"
-      ? "Cancel this vote? No verdict will be recorded — no fine."
-      : `Force verdict: ${action.toUpperCase()}? This overrides the vote.`;
-    const ok = await confirm({
-      title: action === "cancel" ? "Cancel vote?" : `Force ${action.toUpperCase()}?`,
-      description: confirmMsg,
-      confirmLabel: action === "cancel" ? "Yes, cancel vote" : `Force ${action.toUpperCase()}`,
-      cancelLabel: "Back",
-      danger: action === "cancel",
-    });
-    if (!ok) return;
+    // Cancel is low-risk (no verdict, no fine) → skip confirm dialog for speed.
+    // Force verdict (kela/saeb/tie) overrides the vote → keep the confirm.
+    if (action !== "cancel") {
+      const ok = await confirm({
+        title: `Force ${action.toUpperCase()}?`,
+        description: `Force verdict: ${action.toUpperCase()}? This overrides the vote.`,
+        confirmLabel: `Force ${action.toUpperCase()}`,
+        cancelLabel: "Back",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     try {
       const res = await fetch(`/api/rooms/${room.code}/votes/settle`, {
         method: "POST",
@@ -565,6 +570,13 @@ export function RoomView({ room, me }: Props) {
         return;
       }
       toast.success(action === "cancel" ? "Vote cancelled." : `Vote settled: ${action.toUpperCase()}`);
+      // Optimistic UI update: close the vote modal immediately so the user
+      // doesn't wait for the next 700ms poll cycle to detect the change.
+      setVoteOpen(false);
+      setVotedChoice(null);
+      userClosedVoteRef.current = false;
+      // Also refresh data so the cancelled incident appears in recent trials immediately.
+      refreshData();
     } catch (e: any) {
       toast.error(e?.message || "Failed to settle.");
     }
@@ -1778,5 +1790,6 @@ function VerdictBadge({ verdict }: { verdict: string }) {
   if (verdict === "kela") return <Badge className="bg-yellow-400 hover:bg-yellow-400 text-yellow-950">🍌 Kela</Badge>;
   if (verdict === "saeb") return <Badge variant="outline" className="border-red-300 text-red-700">🍎 Saeb</Badge>;
   if (verdict === "tie") return <Badge variant="secondary">🤷 Tie</Badge>;
+  if (verdict === "cancelled") return <Badge variant="outline" className="border-gray-300 text-gray-600">✕ Cancelled</Badge>;
   return <Badge variant="secondary">⏳ Pending</Badge>;
 }
