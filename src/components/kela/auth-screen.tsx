@@ -89,7 +89,7 @@ export function AuthScreen() {
           <div className="text-6xl mb-2 inline-block animate-bounce">🍌</div>
           <h1 className="text-3xl font-bold tracking-tight text-yellow-950">Kela Tracker</h1>
           <p className="text-sm text-yellow-800 mt-1">
-            Catch your friends eating kela. Real-time Among Us-style voting.
+            Catch your friends eating kela. Real-time voting with fines & badges.
           </p>
         </div>
 

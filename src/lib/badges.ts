@@ -122,7 +122,7 @@ export function getEaterBadgeReward(kelaCount: number): EaterBadgeReward | null 
   }
   return null;
 }
-// Visual achievements that unlock as you accuse more. Like PUBG ranks/stickers.
+// Visual achievements that unlock as you accuse more friends.
 export type AccuserAchievement = {
   id: string;
   minAccusations: number;

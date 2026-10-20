@@ -24,7 +24,7 @@ type Blink = {
 };
 
 /**
- * Kela Radar — PUBG-style radar visualization of an active vote.
+ * Kela Radar — visual radar of an active vote.
  *
  * The accused person's avatar emoji sits in the center. A radar sweep
  * rotates around. When a vote comes in, that vote's emoji (🍌 or 🍎)

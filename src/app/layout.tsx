@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Kela Tracker - Catch your friends eating kela",
-  description: "Among Us-style voting app for when your friends eat kela (get offended). Invite friends by email, real-time voting, fines tracked.",
-  keywords: ["kela", "kela tracker", "voting", "friends", "among us"],
+  description: "Track every time your friends eat kela (get offended). Invite friends by email, real-time voting, fines tracked, badges unlocked.",
+  keywords: ["kela", "kela tracker", "voting", "friends", "fines"],
   authors: [{ name: "Kela Tracker" }],
   icons: {
     icon: "/favicon.svg",

@@ -1,6 +1,6 @@
 # 🍌 Kela Tracker
 
-Catch your friends eating kela (getting offended)! Real-time Among Us-style voting app with fines, badges, and custom sound effects.
+Catch your friends eating kela (getting offended)! Real-time voting app with fines, badges, and custom sound effects.
 
 ## Features
 

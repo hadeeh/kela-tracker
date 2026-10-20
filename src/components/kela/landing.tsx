@@ -85,7 +85,7 @@ export function Landing() {
   }
 
   const features = [
-    { icon: Vote, title: "Real-time Voting", desc: "Among Us-style vote popups" },
+    { icon: Vote, title: "Real-time Voting", desc: "Instant vote popups" },
     { icon: Trophy, title: "Badge System", desc: "Earn funny titles & ranks" },
     { icon: Music, title: "Custom Sounds", desc: "Upload your own audio" },
     { icon: Users, title: "Per-person Fines", desc: "Different rates for everyone" },
@@ -103,7 +103,7 @@ export function Landing() {
               Kela Tracker
             </h1>
             <p className="text-sm sm:text-base text-yellow-800 mt-2 max-w-sm mx-auto">
-              Catch your friends eating kela. Real-time Among Us-style voting with fines, badges & custom sounds.
+              Catch your friends eating kela. Real-time voting with fines, badges & custom sounds.
             </p>
           </div>
 

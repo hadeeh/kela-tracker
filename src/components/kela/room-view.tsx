@@ -1442,7 +1442,7 @@ export function RoomView({ room, me }: Props) {
             kelaCount={myGuiltyCount}
           />
 
-          {/* Accuser Achievements (PUBG-style sticker unlocks) */}
+          {/* Accuser Achievements (sticker unlocks as you accuse more) */}
           <AccuserAchievements
             accusationCount={myConfirmedAccusations}
             roomCode={room.code}

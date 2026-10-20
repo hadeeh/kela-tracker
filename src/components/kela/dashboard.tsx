@@ -400,7 +400,7 @@ export function Dashboard({ me }: { me: Me }) {
         </Card>
 
         <footer className="text-center text-xs text-muted-foreground pb-4 pt-2">
-          Made with 🍌 · Real-time Among Us-style voting · Open in multiple browsers to test
+          Made with 🍌 · Real-time voting & fines · Open in multiple browsers to test
         </footer>
       </div>
 

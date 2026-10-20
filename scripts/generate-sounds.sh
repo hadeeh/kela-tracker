@@ -1,6 +1,6 @@
 #!/bin/bash
 # Generates all Kela Tracker sounds using z-ai TTS (male voice, WAV format).
-# Style: short, punchy, game-announcement style — like PUBG "Enemy spotted".
+# Style: short, punchy, announcement-style alerts.
 #
 # Usage:  bash /home/z/my-project/scripts/generate-sounds.sh
 # Output: /home/z/my-project/public/sounds/*.wav
@@ -14,7 +14,7 @@ mkdir -p "$OUT_DIR"
 # Speed: 0.8 = slower/dramatic, 1.0 = normal, 1.2 = faster/urgent
 SOUNDS=(
   # ============ VOTING LIFECYCLE ============
-  # PUBG "Enemy spotted" style — short, urgent alert when a vote begins
+  # Short, urgent alert when a vote begins
   "vote-start.wav|Kela spotted!|1.15"
   # Confirmation chimes when a member casts their vote
   "kela-vote.wav|Kela!|1.1"
@@ -40,7 +40,7 @@ SOUNDS=(
 
 echo "=========================================="
 echo "  Generating ${#SOUNDS[@]} sounds → $OUT_DIR"
-echo "  Voice: male (announcer-style)"
+echo "  Voice: male"
 echo "=========================================="
 
 i=0

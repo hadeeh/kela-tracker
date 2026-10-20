@@ -672,7 +672,7 @@ export function RoomView({ room, me }: Props) {
         </Card>
 
         <footer className="text-center text-xs text-muted-foreground pb-4 pt-2">
-          Made with 🍌 · Real-time Among Us-style voting · Sound on for the full experience 🔊
+          Made with 🍌 · Real-time voting & fines · Sound on for the full experience 🔊
         </footer>
       </div>
 
