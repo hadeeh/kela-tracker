@@ -282,35 +282,6 @@ export function RoomView({ room, me }: Props) {
     }).catch(() => toast.error("Could not copy."));
   }
 
-  function shareOnWhatsApp() {
-    const roomUrl = `${window.location.origin}/room/${room.code}`;
-    const msg = `🍌 *KELA TRACKER* 🍌
-
-Aye kela khaya? 😤 Ab tol diya jaye ga! ⚖️
-
-Ek app banaya hai jahan jab bhi koi "kela" khaye (offend ho jaye / rona shuru kare / ego hurt ho jaye), uspe vote hota hai. Saare dost milkar faisla karte hain:
-
-🍌 KELA → guilty, fine lagta hai
-🍎 SAEB → innocent, choot gaya
-
-Fines track hote hain. Badges milte hain. Custom sounds bajte hain. 3+ kela ek din mein → 💀 WALK OF SHAME.
-
-*Join karne ke liye:*
-1. Link kholo 👇
-2. Apna naam + email daalo
-3. Room code enter karo: *${room.code}*
-4. Minister approve karega
-
-🔗 ${roomUrl}
-
-⚠️ Warning: Dosti mein thodi khalbali hogi. Kisi ki izzat ki guarantee nahi. 😈
-
-Aao, shuru karein ye kela ka hisaab. 🍌💸`;
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    window.open(waUrl, "_blank");
-    toast.success("Opening WhatsApp with pre-filled invite message...");
-  }
-
   async function handleInvite() {
     if (!inviteEmail) {
       toast.error("Enter your friend's email.");
@@ -1719,25 +1690,14 @@ Aao, shuru karein ye kela ka hisaab. 🍌💸`;
               💡 We&apos;ll pre-add them to the room so you can accuse them right away. Share the room code <span className="font-mono font-semibold">{room.code}</span> with them so they can join and vote too.
             </div>
           </div>
-          <DialogFooter className="sm:justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button variant="outline" onClick={copyInviteLink}>
-                {copied ? <Check className="h-4 w-4 mr-1 text-green-600" /> : <Copy className="h-4 w-4 mr-1" />}
-                Copy Link
-              </Button>
-              <Button
-                variant="outline"
-                onClick={shareOnWhatsApp}
-                className="border-green-500 text-green-700 hover:bg-green-50"
-                title="Share invite on WhatsApp with pre-filled funny message"
-              >
-                <span className="mr-1">💬</span>
-                WhatsApp
-              </Button>
-            </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={copyInviteLink}>
+              {copied ? <Check className="h-4 w-4 mr-1 text-green-600" /> : <Copy className="h-4 w-4 mr-1" />}
+              Copy Link
+            </Button>
             <Button onClick={handleInvite} disabled={inviting} className="bg-yellow-400 hover:bg-yellow-500 text-yellow-950">
               {inviting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Mail className="h-4 w-4 mr-1" />}
-              Invite by Email
+              Invite
             </Button>
           </DialogFooter>
         </DialogContent>
