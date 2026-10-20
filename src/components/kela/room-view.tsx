@@ -43,6 +43,7 @@ import { AccuserAchievements } from "./accuser-achievements";
 import { QuickAccusePicker } from "./quick-accuse-picker";
 import { SoundBar } from "./sound-bar";
 import { EaterBadgeSounds } from "./eater-badge-sounds";
+import { useConfirmDialog } from "./use-confirm-dialog";
 
 type Room = { id: string; code: string; name: string; hostEmail: string; createdAt: string };
 type Member = { id: string; name: string; email: string; ratePerKela: number; role: string | null; status: string; joinedAt: string };
@@ -128,6 +129,12 @@ export function RoomView({ room, me }: Props) {
 
   // ---- Result modal ----
   const [resultOpen, setResultOpen] = useState(false);
+
+  // ---- Custom confirm/prompt dialog (replaces native window.confirm / window.prompt) ----
+  const { confirm, prompt, dialog: confirmDialog } = useConfirmDialog();
+
+  // ---- Wipe room state ----
+  const [wipingRoom, setWipingRoom] = useState(false);
 
   // ---- Polling handlers (with sounds) ---------------------------------
   const onVoteStarted = useCallback((av: ActiveVote) => {
@@ -442,7 +449,14 @@ export function RoomView({ room, me }: Props) {
 
   // Minister: delete an incident
   async function handleDeleteIncident(incidentId: string, accusedName: string) {
-    if (!confirm(`Delete this kela incident for ${accusedName}? This removes it permanently (votes + fine).`)) return;
+    const ok = await confirm({
+      title: `Delete kela incident?`,
+      description: `This removes the kela incident for ${accusedName} permanently (votes + fine). This cannot be undone.`,
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/rooms/${room.code}/incidents/${incidentId}`, {
         method: "DELETE",
@@ -463,7 +477,14 @@ export function RoomView({ room, me }: Props) {
 
   // Minister: remove a member from the room (anonymizes — keeps history as ledger)
   async function handleRemoveMember(memberId: string, memberName: string) {
-    if (!confirm(`Remove ${memberName} from the room?\n\nTheir kelas, votes, and fines will be PRESERVED in the history as "Removed User" (ledger). They will no longer be able to log in.`)) return;
+    const ok = await confirm({
+      title: `Remove ${memberName}?`,
+      description: `Their kelas, votes, and fines will be PRESERVED in the history as "Removed User" (ledger). They will no longer be able to log in.`,
+      confirmLabel: "Remove member",
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/rooms/${room.code}/members/${memberId}`, {
         method: "DELETE",
@@ -524,7 +545,14 @@ export function RoomView({ room, me }: Props) {
     const confirmMsg = action === "cancel"
       ? "Cancel this vote? No verdict will be recorded — no fine."
       : `Force verdict: ${action.toUpperCase()}? This overrides the vote.`;
-    if (!confirm(confirmMsg)) return;
+    const ok = await confirm({
+      title: action === "cancel" ? "Cancel vote?" : `Force ${action.toUpperCase()}?`,
+      description: confirmMsg,
+      confirmLabel: action === "cancel" ? "Yes, cancel vote" : `Force ${action.toUpperCase()}`,
+      cancelLabel: "Back",
+      danger: action === "cancel",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/rooms/${room.code}/votes/settle`, {
         method: "POST",
@@ -1197,7 +1225,7 @@ export function RoomView({ room, me }: Props) {
                                 <Button
                                   size="sm"
                                   variant="secondary"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     const input = document.querySelector(`input[data-incident="${inc.id}"]`) as HTMLInputElement;
                                     if (input) {
                                       const val = Number(input.value);
@@ -1208,9 +1236,20 @@ export function RoomView({ room, me }: Props) {
                                         toast.error("Enter a valid amount.");
                                       }
                                     } else {
-                                      // Fallback: prompt
-                                      const val = Number(prompt(`Enter amount to pay (remaining: PKR ${remaining}):`));
-                                      if (val > 0) handleSettle(inc.id, val);
+                                      // Fallback: custom prompt dialog
+                                      const val = await prompt({
+                                        title: "Pay towards fine",
+                                        description: `Enter amount to pay (remaining: PKR ${remaining}):`,
+                                        placeholder: `Max ${remaining}`,
+                                        confirmLabel: "Pay",
+                                        type: "number",
+                                        min: 0,
+                                        max: remaining,
+                                      });
+                                      if (val) {
+                                        const n = Number(val);
+                                        if (n > 0) handleSettle(inc.id, n);
+                                      }
                                     }
                                   }}
                                   className="h-7 text-xs"
@@ -1441,6 +1480,97 @@ export function RoomView({ room, me }: Props) {
           {isMinister && incidents.length > 0 && (
             <Card><CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap"><div><div className="text-sm font-semibold">📄 Export Fine Ledger</div><div className="text-xs text-muted-foreground">Download all fines, payments, and balances</div></div><Button variant="outline" onClick={() => window.open(`/api/rooms/${room.code}/ledger-pdf?memberId=${me.memberId}`, "_blank")}>📄 Download Ledger</Button></CardContent></Card>
           )}
+
+          {/* Wipe Room Data (minister only) */}
+          {isMinister && (
+            <Card className="border-red-200 bg-red-50/50">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="text-2xl">🧹</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-red-900">Wipe Room Data</div>
+                    <div className="text-xs text-red-700/80 mt-0.5">
+                      Permanently delete all kela incidents, votes, fines, mugshots, custom sounds, and achievement rewards from this room. Members are kept. Use this before sharing the link with new users to clear test data.
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    className="border-red-300 text-red-700 hover:bg-red-100"
+                    disabled={wipingRoom}
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: "Wipe ALL room data?",
+                        description: `This permanently deletes ALL kela incidents, votes, fines, mugshots, custom sounds, and achievement rewards from "${room.name}". Members are preserved. This cannot be undone.`,
+                        confirmLabel: "Yes, wipe everything",
+                        cancelLabel: "Cancel",
+                        danger: true,
+                      });
+                      if (!ok) return;
+                      setWipingRoom(true);
+                      try {
+                        const res = await fetch(`/api/rooms/${room.code}/wipe`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ memberId: me.memberId, keepMembers: true }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          toast.error(data?.error || "Failed to wipe room.");
+                          return;
+                        }
+                        toast.success(`🧹 Wiped ${data.deleted.incidents} incident${data.deleted.incidents === 1 ? "" : "s"} and all related data.`);
+                        refreshData();
+                      } catch (e: any) {
+                        toast.error(e?.message || "Failed to wipe room.");
+                      } finally {
+                        setWipingRoom(false);
+                      }
+                    }}
+                  >
+                    {wipingRoom ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Wiping...</> : "🧹 Wipe Room Data"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="text-red-700 hover:bg-red-100"
+                    disabled={wipingRoom}
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: "Wipe ALL data AND remove members?",
+                        description: `This deletes everything (incidents, votes, fines, mugshots, sounds, rewards) AND removes ALL members except you. The room stays. Use this for a complete fresh start.`,
+                        confirmLabel: "Yes, wipe + remove members",
+                        cancelLabel: "Cancel",
+                        danger: true,
+                      });
+                      if (!ok) return;
+                      setWipingRoom(true);
+                      try {
+                        const res = await fetch(`/api/rooms/${room.code}/wipe`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ memberId: me.memberId, keepMembers: false }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          toast.error(data?.error || "Failed to wipe room.");
+                          return;
+                        }
+                        toast.success("🧹 Room fully wiped. All members except you were removed.");
+                        refreshData();
+                      } catch (e: any) {
+                        toast.error(e?.message || "Failed to wipe room.");
+                      } finally {
+                        setWipingRoom(false);
+                      }
+                    }}
+                  >
+                    🧨 Full Reset (also removes members)
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
         )}
       </div>
@@ -1595,6 +1725,9 @@ export function RoomView({ room, me }: Props) {
         onClose={() => { setResultOpen(false); dismissEndedVote(); }}
       />
 
+      {/* Custom confirm/prompt dialog (replaces native window.confirm / window.prompt) */}
+      {confirmDialog}
+
       {/* Floating Action Button — quick accuse (visible on all views) */}
       <button
         onClick={() => setQuickAccuseOpen(true)}
@@ -1605,24 +1738,24 @@ export function RoomView({ room, me }: Props) {
       </button>
 
       {/* Floating "vote in progress" pill — shown when user closed the vote modal
-          but a vote is still active in the background. Click to reopen. */}
+          but a vote is still active in the background. Sits BESIDE the FAB (to its left). */}
       {activeVote && !voteOpen && !activeVote.isAccused && userClosedVoteRef.current && (
         <button
           onClick={() => {
             userClosedVoteRef.current = false;
             setVoteOpen(true);
           }}
-          className="fixed bottom-20 right-4 sm:right-6 z-40 flex items-center gap-2 rounded-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 shadow-lg shadow-green-900/30 transition-all hover:scale-105 active:scale-95"
+          className="fixed bottom-4 right-20 sm:right-24 z-40 flex items-center gap-2 rounded-full bg-green-600 hover:bg-green-700 text-white pl-3 pr-4 py-2 shadow-lg shadow-green-900/30 transition-all hover:scale-105 active:scale-95"
           title="Reopen Kela Radar"
         >
           <span className="text-base animate-pulse">📡</span>
           <div className="flex flex-col items-start leading-tight">
-            <span className="text-[10px] uppercase tracking-wider font-bold opacity-80">Vote running</span>
-            <span className="text-xs font-semibold">
+            <span className="text-[9px] uppercase tracking-wider font-bold opacity-80">Vote running</span>
+            <span className="text-xs font-semibold whitespace-nowrap">
               🍌 {activeVote.votesYes} · 🍎 {activeVote.votesNo}
             </span>
           </div>
-          <span className="ml-1 text-xs underline opacity-80">Open</span>
+          <span className="ml-1 text-[10px] underline opacity-80 whitespace-nowrap">Open</span>
         </button>
       )}
 
