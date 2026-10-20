@@ -104,7 +104,7 @@ export function KelaRadar({ accusedName, votesYes, votesNo, hasVoted, closed }: 
 
   // Pick emoji for accused based on first letter of name (deterministic)
   const accusedEmoji = useMemo(() => {
-    const emojis = ["😮", "😨", "😬", "😱", "🫣", "😳", "perspir"];
+    const emojis = ["😮", "😨", "😬", "😱", "🫣", "😳", "😅", "🥺"];
     const code = accusedName.charCodeAt(0) || 0;
     return emojis[code % emojis.length];
   }, [accusedName]);
