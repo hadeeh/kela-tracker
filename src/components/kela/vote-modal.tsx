@@ -3,7 +3,9 @@
 import { useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 import type { ActiveVote } from "./use-polling";
+import { KelaRadar } from "./kela-radar";
 
 type Props = {
   open: boolean;
@@ -12,16 +14,34 @@ type Props = {
   votedChoice: "kela" | "saeb" | null;
   isMinister?: boolean;
   onSettle?: (action: "kela" | "saeb" | "tie" | "cancel") => void;
+  /** Allow user to manually close the modal while vote is still active */
+  onClose?: () => void;
 };
 
-export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, onSettle }: Props) {
+export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, onSettle, onClose }: Props) {
   const votesYes = activeVote?.votesYes ?? 0;
   const votesNo = activeVote?.votesNo ?? 0;
   const totalVotes = votesYes + votesNo;
 
   return (
     <Dialog open={open}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+      <DialogContent
+        className="sm:max-w-md max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
+        {/* Manual close button (X) — lets user close radar while vote continues */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 z-10 rounded-full p-1.5 bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close radar (vote continues in background)"
+            title="Close — vote continues in background, you'll see results when it ends"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+
         <DialogHeader>
           <DialogTitle className="text-center text-xl flex items-center justify-center gap-2">
             <span className="text-3xl animate-pulse">🍌</span>
@@ -34,15 +54,15 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
 
         {activeVote && (
           <div className="space-y-4">
-            <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-4 text-center">
-              <div className="text-sm text-yellow-700 font-medium">Accused</div>
-              <div className="text-2xl font-bold text-yellow-900 mt-1">{activeVote.accusedName}</div>
+            <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-3 text-center">
+              <div className="text-xs text-yellow-700 font-medium">Accused</div>
+              <div className="text-xl font-bold text-yellow-900 mt-0.5">{activeVote.accusedName}</div>
               {activeVote.reason ? (
-                <div className="text-sm text-yellow-800 mt-2 italic">🍌 &ldquo;{activeVote.reason}&rdquo;</div>
+                <div className="text-xs text-yellow-800 mt-1.5 italic">🍌 &ldquo;{activeVote.reason}&rdquo;</div>
               ) : (
-                <div className="text-sm text-yellow-700 mt-2 italic">No reason given</div>
+                <div className="text-xs text-yellow-700 mt-1.5 italic">No reason given</div>
               )}
-              <div className="text-xs text-yellow-700 mt-2">
+              <div className="text-[10px] text-yellow-700 mt-1.5">
                 Accused by <span className="font-semibold">{activeVote.accusedByName}</span>
               </div>
             </div>
@@ -54,6 +74,21 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
                 <div className="text-sm text-blue-900 italic">&ldquo;{activeVote.defense}&rdquo;</div>
               </div>
             )}
+
+            {/* ============ KELA RADAR ============ */}
+            <div className="rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-green-900/50 p-4">
+              <div className="flex items-center justify-center gap-1.5 mb-2">
+                <span className="text-[10px] uppercase tracking-wider text-green-400 font-bold">
+                  📡 Kela Radar
+                </span>
+              </div>
+              <KelaRadar
+                accusedName={activeVote.accusedName}
+                votesYes={votesYes}
+                votesNo={votesNo}
+                hasVoted={!!votedChoice}
+              />
+            </div>
 
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">

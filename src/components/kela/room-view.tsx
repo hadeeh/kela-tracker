@@ -109,6 +109,9 @@ export function RoomView({ room, me }: Props) {
   // ---- Active vote modal (I'm a voter) ---------------------------------
   const [voteOpen, setVoteOpen] = useState(false);
   const [votedChoice, setVotedChoice] = useState<"kela" | "saeb" | null>(null);
+  // Track if the user manually closed the vote modal — prevents auto-reopening
+  // while the vote is still active in the background. Reset when vote ends or a new vote starts.
+  const userClosedVoteRef = useRef(false);
 
   // ---- Quick Accuse picker (FAB) ----
   const [quickAccuseOpen, setQuickAccuseOpen] = useState(false);
@@ -129,6 +132,7 @@ export function RoomView({ room, me }: Props) {
   // ---- Polling handlers (with sounds) ---------------------------------
   const onVoteStarted = useCallback((av: ActiveVote) => {
     setVotedChoice(av.myVote);
+    userClosedVoteRef.current = false; // new vote → reset manual-close flag
     setVoteOpen(true);
     setAccusedOpen(false);
     play("vote-start"); // 📣 Kelaaaa!
@@ -150,6 +154,7 @@ export function RoomView({ room, me }: Props) {
     setVoteOpen(false);
     setAccusedOpen(false);
     setVotedChoice(null);
+    userClosedVoteRef.current = false; // vote ended → reset manual-close flag
     setResultOpen(true);
 
     // Play verdict sound
@@ -206,7 +211,9 @@ export function RoomView({ room, me }: Props) {
       if (activeVote.isAccused) {
         if (!accusedOpen) setAccusedOpen(true);
       } else {
-        if (!voteOpen) setVoteOpen(true);
+        // Only auto-open the vote modal if the user hasn't manually closed it
+        // (they can close to keep browsing while vote runs in background)
+        if (!voteOpen && !userClosedVoteRef.current) setVoteOpen(true);
       }
       setVotedChoice(activeVote.myVote);
     } else {
@@ -1566,6 +1573,10 @@ export function RoomView({ room, me }: Props) {
         votedChoice={votedChoice}
         isMinister={isMinister}
         onSettle={handleSettleVote}
+        onClose={() => {
+          userClosedVoteRef.current = true;
+          setVoteOpen(false);
+        }}
       />
 
       {/* Accused modal (I'm the accused — can add defense during voting) */}
@@ -1592,6 +1603,28 @@ export function RoomView({ room, me }: Props) {
       >
         🍌
       </button>
+
+      {/* Floating "vote in progress" pill — shown when user closed the vote modal
+          but a vote is still active in the background. Click to reopen. */}
+      {activeVote && !voteOpen && !activeVote.isAccused && userClosedVoteRef.current && (
+        <button
+          onClick={() => {
+            userClosedVoteRef.current = false;
+            setVoteOpen(true);
+          }}
+          className="fixed bottom-20 right-4 sm:right-6 z-40 flex items-center gap-2 rounded-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 shadow-lg shadow-green-900/30 transition-all hover:scale-105 active:scale-95"
+          title="Reopen Kela Radar"
+        >
+          <span className="text-base animate-pulse">📡</span>
+          <div className="flex flex-col items-start leading-tight">
+            <span className="text-[10px] uppercase tracking-wider font-bold opacity-80">Vote running</span>
+            <span className="text-xs font-semibold">
+              🍌 {activeVote.votesYes} · 🍎 {activeVote.votesNo}
+            </span>
+          </div>
+          <span className="ml-1 text-xs underline opacity-80">Open</span>
+        </button>
+      )}
 
       {/* Quick Accuse Picker — member selector */}
       <QuickAccusePicker
