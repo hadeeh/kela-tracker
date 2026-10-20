@@ -127,6 +127,10 @@ export function RoomView({ room, me }: Props) {
 
   // ---- Accused modal (vote is active, I'm the accused) ----
   const [accusedOpen, setAccusedOpen] = useState(false);
+  // Track if the user manually closed the accused modal — prevents the polling
+  // effect from reopening it every 700ms while the vote is still active.
+  // Reset when the vote ends or a new accusation starts.
+  const userClosedAccusedRef = useRef(false);
 
   // ---- Result modal ----
   const [resultOpen, setResultOpen] = useState(false);
@@ -148,6 +152,7 @@ export function RoomView({ room, me }: Props) {
   }, [play]);
 
   const onAccused = useCallback((_av: ActiveVote) => {
+    userClosedAccusedRef.current = false; // new accusation → reset manual-close flag
     setAccusedOpen(true);
     setVoteOpen(false);
     play("vote-start"); // 📣 Kelaaaa!
@@ -163,6 +168,7 @@ export function RoomView({ room, me }: Props) {
     setAccusedOpen(false);
     setVotedChoice(null);
     userClosedVoteRef.current = false; // vote ended → reset manual-close flag
+    userClosedAccusedRef.current = false; // vote ended → reset accused manual-close flag
     setResultOpen(true);
 
     // Play verdict sound (skip for cancelled — no verdict to celebrate)
@@ -221,7 +227,10 @@ export function RoomView({ room, me }: Props) {
   useEffect(() => {
     if (activeVote) {
       if (activeVote.isAccused) {
-        if (!accusedOpen) setAccusedOpen(true);
+        // Only auto-open the accused modal if the user hasn't manually closed it.
+        // Without this, every 700ms poll (e.g., when vote tally changes) would
+        // reopen the modal even after the user dismissed it to read the dashboard.
+        if (!accusedOpen && !userClosedAccusedRef.current) setAccusedOpen(true);
       } else {
         // Only auto-open the vote modal if the user hasn't manually closed it
         // (they can close to keep browsing while vote runs in background)
@@ -1757,7 +1766,10 @@ export function RoomView({ room, me }: Props) {
         activeVote={activeVote}
         onSubmitDefense={handleSubmitDefense}
         submittingDefense={submittingDefense}
-        onClose={() => setAccusedOpen(false)}
+        onClose={() => {
+          userClosedAccusedRef.current = true;
+          setAccusedOpen(false);
+        }}
       />
 
       {/* Result modal */}
@@ -1798,6 +1810,28 @@ export function RoomView({ room, me }: Props) {
             </span>
           </div>
           <span className="ml-1 text-[10px] underline opacity-80 whitespace-nowrap">Open</span>
+        </button>
+      )}
+
+      {/* Floating "you're accused" pill — shown when the accused user closed their
+          defense modal but the vote is still active. Lets them reopen to add/edit defense. */}
+      {activeVote && activeVote.isAccused && !accusedOpen && userClosedAccusedRef.current && (
+        <button
+          onClick={() => {
+            userClosedAccusedRef.current = false;
+            setAccusedOpen(true);
+          }}
+          className="fixed bottom-4 right-20 sm:right-24 z-40 flex items-center gap-2 rounded-full bg-red-600 hover:bg-red-700 text-white pl-3 pr-4 py-2 shadow-lg shadow-red-900/30 transition-all hover:scale-105 active:scale-95"
+          title="Reopen defense modal"
+        >
+          <span className="text-base animate-pulse">⚖️</span>
+          <div className="flex flex-col items-start leading-tight">
+            <span className="text-[9px] uppercase tracking-wider font-bold opacity-80">You're accused!</span>
+            <span className="text-xs font-semibold whitespace-nowrap">
+              🍌 {activeVote.votesYes} · 🍎 {activeVote.votesNo}
+            </span>
+          </div>
+          <span className="ml-1 text-[10px] underline opacity-80 whitespace-nowrap">Defend</span>
         </button>
       )}
 
