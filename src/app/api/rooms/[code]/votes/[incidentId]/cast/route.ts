@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 
 // POST /api/rooms/[code]/votes/[incidentId]/cast
 // Body: { voterId, choice }
-// Records a vote and returns updated counts.
+// Records a vote, updates counts, and AUTO-CLOSES the vote if all eligible
+// voters have voted (so the minister doesn't have to force-settle).
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ code: string; incidentId: string }> }
@@ -42,20 +43,49 @@ export async function POST(
       throw e;
     }
 
-    // Update counts
+    // Update denormalized counts
     const updated = await db.kelaIncident.update({
       where: { id: incidentId },
       data: {
         votesYes: { increment: choice === "kela" ? 1 : 0 },
         votesNo: { increment: choice === "saeb" ? 1 : 0 },
       },
-      select: { votesYes: true, votesNo: true },
+      select: { votesYes: true, votesNo: true, status: true, verdict: true },
     });
+
+    // ---- AUTO-CLOSE: check if all eligible voters have voted ----
+    // Count approved members (excluding the accused)
+    const totalApproved = await db.roomMember.count({
+      where: { roomId: room.id, status: "approved" },
+    });
+    const eligibleVoters = Math.max(0, totalApproved - 1);
+
+    // Count actual Vote rows for this incident (most reliable source)
+    const actualVoteCount = await db.vote.count({ where: { incidentId } });
+
+    // If all eligible voters have voted, finalize the verdict immediately.
+    // Use actualVoteCount (from Vote table) rather than votesYes+votesNo
+    // (denormalized counters) to avoid any sync issues.
+    let autoClosed = false;
+    let verdict: "kela" | "saeb" | "tie" | null = null;
+    if (eligibleVoters > 0 && actualVoteCount >= eligibleVoters && updated.status === "voting") {
+      if (updated.votesYes > updated.votesNo) verdict = "kela";
+      else if (updated.votesNo > updated.votesYes) verdict = "saeb";
+      else verdict = "tie";
+
+      await db.kelaIncident.update({
+        where: { id: incidentId },
+        data: { verdict, status: "completed" },
+      });
+      autoClosed = true;
+    }
 
     return NextResponse.json({
       ok: true,
       votesYes: updated.votesYes,
       votesNo: updated.votesNo,
+      autoClosed,
+      verdict,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Server error" }, { status: 500 });

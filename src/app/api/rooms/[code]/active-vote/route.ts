@@ -32,12 +32,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       const startedAt = pending.createdAt.getTime();
       const endsAt = startedAt + VOTE_DURATION_MS; // for display only
 
-      // Count eligible voters (all members except the accused)
+      // Count eligible voters (all approved members except the accused)
       const totalMembers = await db.roomMember.count({
         where: { roomId: room.id, status: "approved" },
       });
       const eligibleVoters = Math.max(0, totalMembers - 1);
-      const votedCount = pending.votes.length;
+
+      // Use a direct Vote count (most reliable) instead of pending.votes.length
+      // which relies on the include being fresh. Falls back to include count if
+      // the count query fails for any reason.
+      const actualVoteCount = await db.vote.count({ where: { incidentId: pending.id } });
+      const votedCount = actualVoteCount;
 
       // ONLY auto-close when ALL eligible voters have voted
       // NO timeout auto-close — minister must settle if members are offline

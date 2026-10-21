@@ -178,7 +178,7 @@ export function usePolling(
   );
 
   const castVote = useCallback(
-    async (incidentId: string, choice: "kela" | "saeb"): Promise<{ ok?: boolean; error?: string }> => {
+    async (incidentId: string, choice: "kela" | "saeb"): Promise<{ ok?: boolean; error?: string; autoClosed?: boolean; verdict?: "kela" | "saeb" | "tie" | null }> => {
       if (!roomCode || !memberId) return { error: "Not in a room" };
       try {
         const res = await fetch(
@@ -191,7 +191,7 @@ export function usePolling(
         );
         const data = await res.json();
         if (!res.ok) return { error: data?.error || "Failed to cast vote." };
-        return { ok: true };
+        return { ok: true, autoClosed: data.autoClosed, verdict: data.verdict };
       } catch (e: any) {
         return { error: e?.message || "Network error." };
       }

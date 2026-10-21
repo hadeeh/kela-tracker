@@ -386,6 +386,21 @@ export function RoomView({ room, me }: Props) {
     if (choice === "kela") play("kela-vote");
     else play("saeb-vote");
     toast.success(`Voted ${choice === "kela" ? "🍌 Kela" : "🍎 Saeb"}`);
+
+    // If the server auto-closed the vote (this was the final vote), immediately
+    // close the modal and refresh data so the result modal pops up without
+    // waiting for the next 700ms poll cycle.
+    if (r.autoClosed) {
+      setVoteOpen(false);
+      setVotedChoice(null);
+      userClosedVoteRef.current = false;
+      // Play the verdict sound immediately
+      if (r.verdict === "kela") setTimeout(() => play("result-kela"), 400);
+      else if (r.verdict === "saeb") setTimeout(() => play("result-saeb"), 400);
+      else if (r.verdict === "tie") setTimeout(() => play("result-tie"), 400);
+      // Refresh data so the ended vote is picked up by the polling hook
+      refreshData();
+    }
   }
 
   async function saveRate() {
