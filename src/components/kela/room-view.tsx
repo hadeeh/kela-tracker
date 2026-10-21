@@ -142,6 +142,16 @@ export function RoomView({ room, me }: Props) {
   // ---- Wipe room state ----
   const [wipingRoom, setWipingRoom] = useState(false);
 
+  // ---- Rename room state (minister only) ----
+  const [renamingRoom, setRenamingRoom] = useState(false);
+  const [roomNameInput, setRoomNameInput] = useState(room.name);
+  const [editingRoomName, setEditingRoomName] = useState(false);
+
+  // Sync roomNameInput when room.name changes (e.g., another minister renamed it)
+  useEffect(() => {
+    setRoomNameInput(room.name);
+  }, [room.name]);
+
   // ---- Polling handlers (with sounds) ---------------------------------
   const onVoteStarted = useCallback((av: ActiveVote) => {
     setVotedChoice(av.myVote);
@@ -590,6 +600,40 @@ export function RoomView({ room, me }: Props) {
       refreshData();
     } catch (e: any) {
       toast.error(e?.message || "Failed to settle.");
+    }
+  }
+
+  // Minister: rename the room
+  async function handleRenameRoom() {
+    const newName = roomNameInput.trim();
+    if (!newName) {
+      toast.error("Room name cannot be empty.");
+      return;
+    }
+    if (newName === room.name) {
+      // No change — just exit edit mode
+      setEditingRoomName(false);
+      return;
+    }
+    setRenamingRoom(true);
+    try {
+      const res = await fetch(`/api/rooms/${room.code}/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: me.memberId, name: newName }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || "Failed to rename room.");
+        return;
+      }
+      toast.success(`Room renamed to "${newName}".`);
+      setEditingRoomName(false);
+      refreshData();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to rename room.");
+    } finally {
+      setRenamingRoom(false);
     }
   }
 
@@ -1486,6 +1530,77 @@ export function RoomView({ room, me }: Props) {
         {/* ============ SETTINGS TAB ============ */}
         {activeTab === "settings" && (
         <>
+          {/* Room settings (minister can rename) */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">🏠 Room Settings</CardTitle>
+              <CardDescription>
+                {isMinister
+                  ? "Change the room name. The room code stays the same — only the display name updates."
+                  : "Room name and code. Only the minister can rename the room."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="roomName" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Room Name
+                </Label>
+                {isMinister && editingRoomName ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="roomName"
+                      value={roomNameInput}
+                      onChange={(e) => setRoomNameInput(e.target.value)}
+                      maxLength={60}
+                      disabled={renamingRoom}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRenameRoom();
+                        if (e.key === "Escape") {
+                          setRoomNameInput(room.name);
+                          setEditingRoomName(false);
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <Button size="sm" onClick={handleRenameRoom} disabled={renamingRoom} className="bg-yellow-400 hover:bg-yellow-500 text-yellow-950">
+                      {renamingRoom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      <span className="ml-1 hidden sm:inline">Save</span>
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setRoomNameInput(room.name); setEditingRoomName(false); }} disabled={renamingRoom}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 rounded-md border bg-muted/30 px-3 py-2 text-sm font-semibold">
+                      {room.name}
+                    </div>
+                    {isMinister && (
+                      <Button size="sm" variant="outline" onClick={() => { setRoomNameInput(room.name); setEditingRoomName(true); }} title="Rename room">
+                        ✏️ <span className="ml-1 hidden sm:inline">Rename</span>
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Room Code
+                </Label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-md border bg-muted/30 px-3 py-2 text-sm font-mono font-bold tracking-wider">
+                    {room.code}
+                  </div>
+                  <Button size="sm" variant="outline" onClick={copyInviteLink} title="Copy invite link">
+                    {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                    <span className="ml-1 hidden sm:inline">{copied ? "Copied!" : "Copy Link"}</span>
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">The room code cannot be changed — it's the permanent identifier friends use to join.</p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Badge Legend (everyone can see) */}
           <Card>
             <CardHeader>
