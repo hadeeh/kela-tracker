@@ -154,3 +154,78 @@ function escapeHtml(s: string): string {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] || c;
   });
 }
+
+// ---- OTP Verification Email ----
+
+export async function sendOTPEmail(params: {
+  to: string;
+  code: string;
+  roomName: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const transport = getTransporter();
+  if (!transport) {
+    return { ok: false, error: "Email service not configured (SMTP_USER/SMTP_PASS not set)" };
+  }
+
+  const { to, code, roomName } = params;
+  const subject = `🍌 Your Kela Tracker verification code: ${code}`;
+
+  const text = `Kela Tracker — Email Verification
+
+Your verification code for "${roomName}" is:
+
+  ${code}
+
+This code expires in 10 minutes. Enter it in the app to verify your email and join the room.
+
+If you didn't request this code, you can safely ignore this email.`;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#FFF8E1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:400px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#FFE135,#F5C518);padding:24px 20px;text-align:center;">
+      <div style="font-size:40px;margin-bottom:4px;">🍌</div>
+      <h1 style="margin:0;color:#2B1B0E;font-size:20px;font-weight:800;">Kela Tracker</h1>
+      <p style="margin:4px 0 0;color:#5C4A1E;font-size:13px;">Email Verification</p>
+    </div>
+    <div style="padding:30px 20px;text-align:center;">
+      <p style="margin:0 0 16px;font-size:15px;color:#555;">
+        Enter this code to verify your email and join "${escapeHtml(roomName)}":
+      </p>
+      <div style="background:#FFF8E1;border:2px dashed #F5C518;border-radius:12px;padding:20px;margin:20px 0;">
+        <div style="font-size:36px;font-weight:900;letter-spacing:8px;color:#2B1B0E;font-family:monospace;">
+          ${escapeHtml(code)}
+        </div>
+      </div>
+      <p style="margin:0;font-size:12px;color:#999;">
+        This code expires in 10 minutes.<br>
+        If you didn't request this, you can safely ignore this email.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  try {
+    await transport.sendMail({
+      from: `"Kela Tracker <${fromEmail}>"`,
+      to: [to],
+      subject,
+      html,
+      text,
+      replyTo: smtpUser,
+      headers: {
+        "X-Mailer": "Kela Tracker",
+        "X-Priority": "1", // high priority
+      },
+    });
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || "Failed to send email" };
+  }
+}

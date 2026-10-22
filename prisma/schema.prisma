@@ -165,3 +165,18 @@ model AssetVersion {
   @@index([roomId, assetKey])
   @@index([createdAt])
 }
+
+// Email OTP verification codes — used to verify email ownership when joining a room.
+// Each code is 6 digits, expires after 10 minutes, and is single-use.
+model EmailVerificationCode {
+  id        String   @id @default(cuid())
+  email     String   // lowercase, the email being verified
+  roomId    String   // which room they're trying to join
+  code      String   // 6-digit code
+  expiresAt DateTime // createdAt + 10 minutes
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, roomId])
+  @@index([code])
+}
