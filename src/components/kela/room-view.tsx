@@ -1325,6 +1325,47 @@ export function RoomView({ room, me }: Props) {
                           </>
                         )}
                       </div>
+                      {/* Voter breakdown — expandable to see who voted kela vs saeb */}
+                      {inc.votes.length > 0 && (
+                        <details className="mt-2 group">
+                          <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground select-none list-none flex items-center gap-1">
+                            <span className="group-open:rotate-90 transition-transform">▶</span>
+                            <span>View voter breakdown ({inc.votes.length})</span>
+                          </summary>
+                          <div className="mt-2 grid grid-cols-2 gap-2 pl-4">
+                            <div className="space-y-1">
+                              <div className="text-[10px] font-bold text-yellow-700 uppercase">🍌 Kela ({inc.votes.filter((v: any) => v.choice === "kela").length})</div>
+                              {inc.votes.filter((v: any) => v.choice === "kela").length === 0 ? (
+                                <div className="text-[10px] text-muted-foreground italic">No one</div>
+                              ) : (
+                                inc.votes.filter((v: any) => v.choice === "kela").map((v: any) => (
+                                  <div key={v.id} className="text-xs flex items-center gap-1.5">
+                                    <Avatar className="h-4 w-4 bg-yellow-200 text-yellow-900">
+                                      <AvatarFallback className="text-[8px]">{v.voter.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="truncate">{v.voter.name}</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                            <div className="space-y-1">
+                              <div className="text-[10px] font-bold text-red-600 uppercase">🍎 Saeb ({inc.votes.filter((v: any) => v.choice === "saeb").length})</div>
+                              {inc.votes.filter((v: any) => v.choice === "saeb").length === 0 ? (
+                                <div className="text-[10px] text-muted-foreground italic">No one</div>
+                              ) : (
+                                inc.votes.filter((v: any) => v.choice === "saeb").map((v: any) => (
+                                  <div key={v.id} className="text-xs flex items-center gap-1.5">
+                                    <Avatar className="h-4 w-4 bg-red-100 text-red-700">
+                                      <AvatarFallback className="text-[8px]">{v.voter.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="truncate">{v.voter.name}</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </details>
+                      )}
                       {/* Minister actions: settle payment + delete (only for kela verdict) */}
                       {isMinister && inc.verdict === "kela" && (
                         <div className="flex items-center gap-2 mt-2 flex-wrap">

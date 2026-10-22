@@ -16,7 +16,7 @@ type Props = {
   submittingDefense: boolean;
   onClose: () => void;
   isMinister?: boolean;
-  onSettle?: (action: "kela" | "saeb" | "tie" | "cancel") => void;
+  onSettle?: (action: "kela" | "saeb" | "tie" | "cancel", incidentId?: string) => void;
 };
 
 export function AccusedModal({ open, activeVote, onSubmitDefense, submittingDefense, onClose, isMinister, onSettle }: Props) {
@@ -103,10 +103,10 @@ export function AccusedModal({ open, activeVote, onSubmitDefense, submittingDefe
                 ⚡ Minister Controls <span className="text-yellow-700">(you can end this vote)</span>
               </div>
               <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                <Button size="sm" variant="outline" className="h-7 text-[10px] bg-yellow-50" onClick={() => onSettle("kela")}>🍌 Force Kela</Button>
-                <Button size="sm" variant="outline" className="h-7 text-[10px] bg-red-50" onClick={() => onSettle("saeb")}>🍎 Force Saeb</Button>
-                <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => onSettle("tie")}>🤷 Force Tie</Button>
-                <Button size="sm" variant="outline" className="h-7 text-[10px] text-red-600" onClick={() => onSettle("cancel")}>✕ Cancel Vote</Button>
+                <Button size="sm" variant="outline" className="h-7 text-[10px] bg-yellow-50" onClick={() => onSettle("kela", activeVote?.incidentId)}>🍌 Force Kela</Button>
+                <Button size="sm" variant="outline" className="h-7 text-[10px] bg-red-50" onClick={() => onSettle("saeb", activeVote?.incidentId)}>🍎 Force Saeb</Button>
+                <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => onSettle("tie", activeVote?.incidentId)}>🤷 Force Tie</Button>
+                <Button size="sm" variant="outline" className="h-7 text-[10px] text-red-600" onClick={() => onSettle("cancel", activeVote?.incidentId)}>✕ Cancel Vote</Button>
               </div>
               <p className="text-[9px] text-muted-foreground text-center mt-1">
                 As minister, you can end this vote even though you&apos;re the accused — useful for cancelling malicious accusations.
