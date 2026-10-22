@@ -1210,7 +1210,7 @@ export function RoomView({ room, me }: Props) {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground text-center">
-                        {totalAccused} accusation{totalAccused === 1 ? "" : "s"} total
+                        😱 {totalAccused} time{totalAccused === 1 ? "" : "s"} accused · 🏹 {memberAccusations} confirmed accusation{memberAccusations === 1 ? "" : "s"}
                       </div>
                       {(() => {
                         const badge = getBadge(guilty);
