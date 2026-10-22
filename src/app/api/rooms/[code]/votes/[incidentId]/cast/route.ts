@@ -53,7 +53,7 @@ export async function POST(
       select: { votesYes: true, votesNo: true, status: true, verdict: true },
     });
 
-    // ---- AUTO-CLOSE: check if all eligible voters have voted ----
+    // ---- AUTO-CLOSE: check if all eligible voters have voted OR deadline passed ----
     // Count approved members (excluding the accused)
     const totalApproved = await db.roomMember.count({
       where: { roomId: room.id, status: "approved" },
@@ -63,21 +63,30 @@ export async function POST(
     // Count actual Vote rows for this incident (most reliable source)
     const actualVoteCount = await db.vote.count({ where: { incidentId } });
 
-    // If all eligible voters have voted, finalize the verdict immediately.
-    // Use actualVoteCount (from Vote table) rather than votesYes+votesNo
-    // (denormalized counters) to avoid any sync issues.
+    // Re-fetch the incident to get the latest voteEndsAt
+    const refreshed = await db.kelaIncident.findUnique({
+      where: { id: incidentId },
+      select: { status: true, voteEndsAt: true, votesYes: true, votesNo: true },
+    });
+
     let autoClosed = false;
     let verdict: "kela" | "saeb" | "tie" | null = null;
-    if (eligibleVoters > 0 && actualVoteCount >= eligibleVoters && updated.status === "voting") {
-      if (updated.votesYes > updated.votesNo) verdict = "kela";
-      else if (updated.votesNo > updated.votesYes) verdict = "saeb";
-      else verdict = "tie";
 
-      await db.kelaIncident.update({
-        where: { id: incidentId },
-        data: { verdict, status: "completed" },
-      });
-      autoClosed = true;
+    if (refreshed && refreshed.status === "voting") {
+      const allVoted = eligibleVoters > 0 && actualVoteCount >= eligibleVoters;
+      const deadlinePassed = !!(refreshed.voteEndsAt && refreshed.voteEndsAt.getTime() < Date.now());
+
+      if (allVoted || deadlinePassed) {
+        if (refreshed.votesYes > refreshed.votesNo) verdict = "kela";
+        else if (refreshed.votesNo > refreshed.votesYes) verdict = "saeb";
+        else verdict = "tie";
+
+        await db.kelaIncident.update({
+          where: { id: incidentId },
+          data: { verdict, status: "completed" },
+        });
+        autoClosed = true;
+      }
     }
 
     return NextResponse.json({

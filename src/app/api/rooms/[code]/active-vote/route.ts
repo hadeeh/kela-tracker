@@ -1,12 +1,32 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const VOTE_DURATION_MS = 30_000; // kept for display only — no auto-close
+const VOTE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 // GET /api/rooms/[code]/active-vote?memberId=xxx
-// Returns the current active vote (if any) + the most recently ended vote.
-// Votes stay open until: all eligible voters voted, OR minister settles.
-// NO auto-close on timeout.
+//
+// Returns ALL active (in-progress) votes in the room + any votes that ended
+// in the last 15 seconds (so clients can show a result modal per vote).
+//
+// Multiple simultaneous votes are supported — the response is an array.
+//
+// Auto-closes any votes whose 5-minute deadline has passed. The verdict is
+// decided by current vote counts:
+//   votesYes > votesNo → "kela"
+//   votesNo > votesYes → "saeb"
+//   tie or zero votes  → "tie" (no fine, no verdict recorded as guilty)
+//
+// Response shape:
+// {
+//   activeVotes: ActiveVote[],   // all currently-open votes
+//   endedVotes:  EndedVote[],    // votes that ended in last 15s (for result modals)
+// }
+//
+// For backwards compat, also returns:
+// {
+//   activeVote: ActiveVote | null,  // = activeVotes[0] or null
+//   endedVote:  EndedVote | null,   // = endedVotes[0] or null
+// }
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
@@ -16,10 +36,38 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     const room = await db.room.findUnique({ where: { code: code.toUpperCase() } });
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
-    // 1. Check for a pending (active) incident
-    const pending = await db.kelaIncident.findFirst({
+    const now = new Date();
+
+    // ---- 1. Auto-close any expired votes ----
+    // Find all "voting" incidents whose voteEndsAt has passed.
+    const expired = await db.kelaIncident.findMany({
+      where: {
+        roomId: room.id,
+        status: "voting",
+        voteEndsAt: { lt: now },
+      },
+      include: {
+        user: { select: { id: true, name: true } },
+        accusedBy: { select: { id: true, name: true } },
+      },
+    });
+
+    for (const inc of expired) {
+      let verdict: "kela" | "saeb" | "tie";
+      if (inc.votesYes > inc.votesNo) verdict = "kela";
+      else if (inc.votesNo > inc.votesYes) verdict = "saeb";
+      else verdict = "tie"; // tie or zero votes → tie (no fine)
+
+      await db.kelaIncident.update({
+        where: { id: inc.id },
+        data: { verdict, status: "completed" },
+      });
+    }
+
+    // ---- 2. Fetch all currently-active votes ----
+    const activeIncidents = await db.kelaIncident.findMany({
       where: { roomId: room.id, status: "voting" },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "asc" }, // oldest first
       include: {
         user: { select: { id: true, name: true, email: true, ratePerKela: true } },
         accusedBy: { select: { id: true, name: true } },
@@ -27,30 +75,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       },
     });
 
-    if (pending) {
-      const now = Date.now();
-      const startedAt = pending.createdAt.getTime();
-      const endsAt = startedAt + VOTE_DURATION_MS; // for display only
+    // Also auto-close any vote where all eligible voters have voted.
+    // (Belt + suspenders alongside the cast-route auto-close.)
+    const totalApproved = await db.roomMember.count({
+      where: { roomId: room.id, status: "approved" },
+    });
+    const eligibleVoters = Math.max(0, totalApproved - 1);
 
-      // Count eligible voters (all approved members except the accused)
-      const totalMembers = await db.roomMember.count({
-        where: { roomId: room.id, status: "approved" },
-      });
-      const eligibleVoters = Math.max(0, totalMembers - 1);
+    const activeVotes: any[] = [];
+    const justClosedByAllVoted: any[] = [];
 
-      // Use a direct Vote count (most reliable) instead of pending.votes.length
-      // which relies on the include being fresh. Falls back to include count if
-      // the count query fails for any reason.
+    for (const pending of activeIncidents) {
+      // Skip if already auto-closed above by deadline
+      if (expired.some((e) => e.id === pending.id)) continue;
+
       const actualVoteCount = await db.vote.count({ where: { incidentId: pending.id } });
-      const votedCount = actualVoteCount;
+      const allVoted = eligibleVoters > 0 && actualVoteCount >= eligibleVoters;
 
-      // ONLY auto-close when ALL eligible voters have voted
-      // NO timeout auto-close — minister must settle if members are offline
-      const allVoted = eligibleVoters > 0 && votedCount >= eligibleVoters;
-
-      // Finalize only when ALL eligible voters have voted
-      // NO timeout — minister must settle manually if members are offline
       if (allVoted) {
+        // Auto-close on full participation
         let verdict: "kela" | "saeb" | "tie";
         if (pending.votesYes > pending.votesNo) verdict = "kela";
         else if (pending.votesNo > pending.votesYes) verdict = "saeb";
@@ -61,31 +104,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
           data: { verdict, status: "completed" },
         });
 
-        return NextResponse.json({
-          activeVote: null,
-          endedVote: {
-            incidentId: pending.id,
-            accusedId: pending.userId,
-            accusedName: pending.user.name,
-            accusedById: pending.accusedById,
-            accusedByName: pending.accusedBy.name,
-            reason: pending.reason,
-            defense: pending.defense,
-            votesYes: pending.votesYes,
-            votesNo: pending.votesNo,
-            verdict,
-            isAccusedMe: pending.userId === memberId,
-          },
+        justClosedByAllVoted.push({
+          incidentId: pending.id,
+          accusedId: pending.userId,
+          accusedName: pending.user.name,
+          accusedById: pending.accusedById,
+          accusedByName: pending.accusedBy.name,
+          reason: pending.reason,
+          defense: pending.defense,
+          votesYes: pending.votesYes,
+          votesNo: pending.votesNo,
+          verdict,
+          isAccusedMe: pending.userId === memberId,
         });
-      }
+      } else {
+        // Still active
+        const myVote = memberId
+          ? pending.votes.find((v) => v.voterId === memberId)?.choice || null
+          : null;
+        const startedAt = pending.createdAt.getTime();
+        const endsAt = pending.voteEndsAt ? pending.voteEndsAt.getTime() : (startedAt + VOTE_DURATION_MS);
 
-      // Still active — return current state
-      const myVote = memberId
-        ? pending.votes.find((v) => v.voterId === memberId)?.choice || null
-        : null;
-
-      return NextResponse.json({
-        activeVote: {
+        activeVotes.push({
           incidentId: pending.id,
           accusedId: pending.userId,
           accusedName: pending.user.name,
@@ -95,19 +135,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
           defense: pending.defense,
           startedAt,
           endsAt,
+          voteEndsAt: pending.voteEndsAt?.getTime() ?? null,
           votesYes: pending.votesYes,
           votesNo: pending.votesNo,
           voterCount: pending.votes.length,
           myVote,
           isAccused: pending.userId === memberId,
-        },
-        endedVote: null,
-      });
+        });
+      }
     }
 
-    // 2. No pending incident — check for a recently ended one (within last 15 seconds).
-    //    Includes cancelled votes so the result modal can show "Vote Cancelled".
-    const recentEnded = await db.kelaIncident.findFirst({
+    // ---- 3. Fetch recently-ended votes (last 15s) for result modals ----
+    // Includes both deadline-expired (from step 1) and all-voted (from step 2).
+    const recentEnded = await db.kelaIncident.findMany({
       where: {
         roomId: room.id,
         status: { in: ["completed", "cancelled"] },
@@ -115,33 +155,35 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
         createdAt: { gt: new Date(Date.now() - 15_000) },
       },
       orderBy: { createdAt: "desc" },
+      take: 10,
       include: {
         user: { select: { id: true, name: true } },
         accusedBy: { select: { id: true, name: true } },
       },
     });
 
-    if (recentEnded) {
-      return NextResponse.json({
-        activeVote: null,
-        endedVote: {
-          incidentId: recentEnded.id,
-          accusedId: recentEnded.userId,
-          accusedName: recentEnded.user.name,
-          accusedById: recentEnded.accusedById,
-          accusedByName: recentEnded.accusedBy.name,
-          reason: recentEnded.reason,
-          defense: recentEnded.defense,
-          votesYes: recentEnded.votesYes,
-          votesNo: recentEnded.votesNo,
-          verdict: recentEnded.verdict as "kela" | "saeb" | "tie" | "cancelled",
-          isAccusedMe: recentEnded.userId === memberId,
-        },
-      });
-    }
+    const endedVotes = recentEnded.map((inc) => ({
+      incidentId: inc.id,
+      accusedId: inc.userId,
+      accusedName: inc.user.name,
+      accusedById: inc.accusedById,
+      accusedByName: inc.accusedBy.name,
+      reason: inc.reason,
+      defense: inc.defense,
+      votesYes: inc.votesYes,
+      votesNo: inc.votesNo,
+      verdict: inc.verdict as "kela" | "saeb" | "tie" | "cancelled",
+      isAccusedMe: inc.userId === memberId,
+    }));
 
-    // 3. Nothing happening
-    return NextResponse.json({ activeVote: null, endedVote: null });
+    return NextResponse.json({
+      // New multi-vote arrays
+      activeVotes,
+      endedVotes,
+      // Backwards-compat single-vote fields (first of each)
+      activeVote: activeVotes[0] || null,
+      endedVote: endedVotes[0] || null,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Server error" }, { status: 500 });
   }

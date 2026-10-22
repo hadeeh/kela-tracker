@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const VOTE_DURATION_MS = 30_000;
+const VOTE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 // POST /api/rooms/[code]/votes/start
 // Body: { accusedId, accusedById, reason? }
 // Creates a new KelaIncident with status "voting" — vote starts IMMEDIATELY.
 // The accused can add their defense DURING the voting (optional, not required).
+//
+// Multiple simultaneous votes are allowed — even for the same person.
+// Each vote has its own 5-minute deadline (voteEndsAt).
 export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
@@ -27,16 +30,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       return NextResponse.json({ error: "Cannot accuse yourself." }, { status: 400 });
     }
 
-    // Check if there's already an active incident
-    const existing = await db.kelaIncident.findFirst({
-      where: {
-        roomId: room.id,
-        status: "voting",
-      },
-    });
-    if (existing) {
-      return NextResponse.json({ error: "A vote is already in progress in this room." }, { status: 409 });
-    }
+    // NOTE: Multiple simultaneous votes ARE allowed (even for the same person).
+    // The old "one vote at a time" constraint has been removed.
 
     // Verify both members exist
     const accused = await db.roomMember.findFirst({ where: { id: accusedId, roomId: room.id } });
@@ -47,6 +42,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
 
     // Create the incident — vote starts IMMEDIATELY (status = "voting")
     // The accused can add their defense during the voting period (optional)
+    // Set 5-minute deadline for auto-close.
+    const now = new Date();
     const incident = await db.kelaIncident.create({
       data: {
         roomId: room.id,
@@ -55,6 +52,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
         reason: reason?.toString().slice(0, 200) || null,
         rateAtTime: accused.ratePerKela,
         status: "voting",
+        voteEndsAt: new Date(now.getTime() + VOTE_DURATION_MS),
       },
     });
 
@@ -68,6 +66,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
         status: incident.status,
         startedAt: incident.createdAt.getTime(),
         endsAt: incident.createdAt.getTime() + VOTE_DURATION_MS,
+        voteEndsAt: incident.voteEndsAt?.getTime() ?? null,
       },
     });
   } catch (e: any) {

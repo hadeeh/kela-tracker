@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { X, Clock } from "lucide-react";
 import type { ActiveVote } from "./use-polling";
 import { KelaRadar } from "./kela-radar";
 
@@ -13,15 +13,46 @@ type Props = {
   onVote: (choice: "kela" | "saeb") => void;
   votedChoice: "kela" | "saeb" | null;
   isMinister?: boolean;
-  onSettle?: (action: "kela" | "saeb" | "tie" | "cancel") => void;
+  onSettle?: (action: "kela" | "saeb" | "tie" | "cancel", incidentId: string) => void;
   /** Allow user to manually close the modal while vote is still active */
   onClose?: () => void;
 };
+
+function useCountdown(endsAt: number | null | undefined) {
+  const [remainingMs, setRemainingMs] = useState<number>(0);
+
+  useEffect(() => {
+    if (!endsAt) {
+      setRemainingMs(0);
+      return;
+    }
+    function update() {
+      const ms = Math.max(0, (endsAt as number) - Date.now());
+      setRemainingMs(ms);
+    }
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [endsAt]);
+
+  return remainingMs;
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "0:00";
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${sec.toString().padStart(2, "0")}`;
+}
 
 export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, onSettle, onClose }: Props) {
   const votesYes = activeVote?.votesYes ?? 0;
   const votesNo = activeVote?.votesNo ?? 0;
   const totalVotes = votesYes + votesNo;
+  const remainingMs = useCountdown(activeVote?.voteEndsAt ?? activeVote?.endsAt);
+  const isUrgent = remainingMs > 0 && remainingMs < 60_000; // < 1 min left
+  const isExpired = remainingMs === 0 && (activeVote?.voteEndsAt ?? activeVote?.endsAt);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && onClose) onClose(); }}>
@@ -55,6 +86,22 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
 
         {activeVote && (
           <div className="space-y-4">
+            {/* Countdown timer */}
+            {(activeVote.voteEndsAt ?? activeVote.endsAt) && (
+              <div className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold ${
+                isExpired ? "bg-red-100 text-red-700"
+                : isUrgent ? "bg-orange-100 text-orange-700 animate-pulse"
+                : "bg-blue-50 text-blue-700"
+              }`}>
+                <Clock className="h-3.5 w-3.5" />
+                {isExpired ? (
+                  <span>Voting closed — deciding verdict...</span>
+                ) : (
+                  <span>⏱ {formatCountdown(remainingMs)} remaining</span>
+                )}
+              </div>
+            )}
+
             <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-3 text-center">
               <div className="text-xs text-yellow-700 font-medium">Accused</div>
               <div className="text-xl font-bold text-yellow-900 mt-0.5">{activeVote.accusedName}</div>
@@ -97,7 +144,7 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
                 <span className="font-semibold text-blue-600">Open — waiting for votes</span>
               </div>
               <div className="text-[10px] text-muted-foreground text-center">
-                {activeVote.voterCount} voted · Minister can settle anytime
+                {activeVote.voterCount} voted · Auto-closes at 5:00 or when all vote
               </div>
             </div>
 
@@ -141,7 +188,7 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
             )}
 
             <p className="text-center text-xs text-muted-foreground">
-              The accused cannot vote. Vote stays open until all vote or minister settles.
+              The accused cannot vote. Vote auto-closes in 5 min, when all vote, or when minister settles.
             </p>
 
             {/* Minister settle controls */}
@@ -149,10 +196,10 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
               <div className="border-t pt-3 mt-2">
                 <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1.5 text-center">⚡ Minister Controls</div>
                 <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                  <Button size="sm" variant="outline" className="h-7 text-[10px] bg-yellow-50" onClick={() => onSettle("kela")}>🍌 Force Kela</Button>
-                  <Button size="sm" variant="outline" className="h-7 text-[10px] bg-red-50" onClick={() => onSettle("saeb")}>🍎 Force Saeb</Button>
-                  <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => onSettle("tie")}>🤷 Force Tie</Button>
-                  <Button size="sm" variant="outline" className="h-7 text-[10px] text-red-600" onClick={() => onSettle("cancel")}>✕ Cancel Vote</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-[10px] bg-yellow-50" onClick={() => onSettle("kela", activeVote.incidentId)}>🍌 Force Kela</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-[10px] bg-red-50" onClick={() => onSettle("saeb", activeVote.incidentId)}>🍎 Force Saeb</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => onSettle("tie", activeVote.incidentId)}>🤷 Force Tie</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-[10px] text-red-600" onClick={() => onSettle("cancel", activeVote.incidentId)}>✕ Cancel Vote</Button>
                 </div>
                 <p className="text-[9px] text-muted-foreground text-center mt-1">Use if members are offline or to end early.</p>
               </div>

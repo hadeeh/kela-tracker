@@ -61,6 +61,7 @@ model KelaIncident {
   rateAtTime    Int      @default(50)
   paidAmount    Int      @default(0)
   settledAt     DateTime?
+  voteEndsAt    DateTime? // deadline for voting (createdAt + 5 min). Null = no deadline.
   photoId       String?
   photo         Mugshot? @relation(fields: [photoId], references: [id], onDelete: SetNull)
   createdAt     DateTime @default(now())
@@ -69,6 +70,7 @@ model KelaIncident {
 
   @@index([roomId])
   @@index([createdAt])
+  @@index([status])
 }
 
 model Vote {

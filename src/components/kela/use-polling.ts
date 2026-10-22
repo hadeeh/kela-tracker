@@ -13,6 +13,7 @@ export type ActiveVote = {
   defense: string | null;
   startedAt: number;
   endsAt: number;
+  voteEndsAt?: number | null;
   votesYes: number;
   votesNo: number;
   voterCount: number;
@@ -35,8 +36,12 @@ export type EndedVote = {
 };
 
 type PollResponse = {
-  activeVote: ActiveVote | null;
-  endedVote: EndedVote | null;
+  // New multi-vote arrays
+  activeVotes?: ActiveVote[];
+  endedVotes?: EndedVote[];
+  // Backwards-compat single-vote fields
+  activeVote?: ActiveVote | null;
+  endedVote?: EndedVote | null;
 };
 
 type Handlers = {
@@ -54,17 +59,23 @@ export function usePolling(
   memberId: string | null,
   handlers: Handlers
 ) {
-  const [activeVote, setActiveVote] = useState<ActiveVote | null>(null);
-  const [endedVote, setEndedVote] = useState<EndedVote | null>(null);
+  // Multi-vote state (new)
+  const [activeVotes, setActiveVotes] = useState<ActiveVote[]>([]);
+  const [endedVotes, setEndedVotes] = useState<EndedVote[]>([]);
+
+  // Backwards-compat single-vote state (derived from arrays)
+  // activeVote = the first active vote where I'm NOT the accused, OR null
+  // (kept so existing VoteModal usage doesn't break)
+  const activeVote = activeVotes.find((v) => !v.isAccused) || activeVotes[0] || null;
+
   const handlersRef = useRef(handlers);
   useEffect(() => {
     handlersRef.current = handlers;
   });
 
-  const prevActiveId = useRef<string | null>(null);
-  const prevVotesYes = useRef(0);
-  const prevVotesNo = useRef(0);
-  const prevDefense = useRef<string | null>(null);
+  // Per-vote tracking (keyed by incidentId) for diff detection
+  const prevActiveIds = useRef<Set<string>>(new Set());
+  const prevVotesByIncident = useRef<Map<string, { yes: number; no: number; defense: string | null }>>(new Map());
   const shownEndedIds = useRef<Set<string>>(new Set());
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -83,56 +94,67 @@ export function usePolling(
         const data: PollResponse = await res.json();
         if (cancelled) return;
 
-        // ---- Handle active vote ----
-        if (data.activeVote) {
-          const av = data.activeVote;
-          const isNewVote = prevActiveId.current !== av.incidentId;
+        const newActiveVotes = data.activeVotes || [];
+        const newEndedVotes = data.endedVotes || [];
 
-          if (isNewVote) {
+        // ---- Detect NEW active votes (fire onVoteStarted / onAccused) ----
+        for (const av of newActiveVotes) {
+          if (!prevActiveIds.current.has(av.incidentId)) {
+            // New vote — fire appropriate handler
             if (av.isAccused) {
               handlersRef.current.onAccused?.(av);
             } else {
               handlersRef.current.onVoteStarted?.(av);
             }
-            prevVotesYes.current = av.votesYes;
-            prevVotesNo.current = av.votesNo;
-            prevDefense.current = av.defense;
+            prevVotesByIncident.current.set(av.incidentId, {
+              yes: av.votesYes,
+              no: av.votesNo,
+              defense: av.defense,
+            });
           } else {
-            // Check for tally changes
-            if (av.votesYes > prevVotesYes.current) {
-              handlersRef.current.onVoteUpdate?.(av.votesYes, av.votesNo, "kela");
+            // Existing vote — check for tally changes
+            const prev = prevVotesByIncident.current.get(av.incidentId);
+            if (prev) {
+              if (av.votesYes > prev.yes) {
+                handlersRef.current.onVoteUpdate?.(av.votesYes, av.votesNo, "kela");
+              }
+              if (av.votesNo > prev.no) {
+                handlersRef.current.onVoteUpdate?.(av.votesYes, av.votesNo, "saeb");
+              }
+              if (av.defense !== prev.defense && av.defense) {
+                handlersRef.current.onDefenseUpdated?.(av.defense);
+              }
             }
-            if (av.votesNo > prevVotesNo.current) {
-              handlersRef.current.onVoteUpdate?.(av.votesYes, av.votesNo, "saeb");
-            }
-            prevVotesYes.current = av.votesYes;
-            prevVotesNo.current = av.votesNo;
-
-            // Check for defense update
-            if (av.defense !== prevDefense.current && av.defense) {
-              handlersRef.current.onDefenseUpdated?.(av.defense);
-              prevDefense.current = av.defense;
-            }
-          }
-
-          prevActiveId.current = av.incidentId;
-          setActiveVote(av);
-          setEndedVote(null);
-        } else {
-          if (prevActiveId.current) {
-            prevActiveId.current = null;
-            prevVotesYes.current = 0;
-            prevVotesNo.current = 0;
-            prevDefense.current = null;
-          }
-          setActiveVote(null);
-
-          if (data.endedVote && !shownEndedIds.current.has(data.endedVote.incidentId)) {
-            shownEndedIds.current.add(data.endedVote.incidentId);
-            setEndedVote(data.endedVote);
-            handlersRef.current.onVoteEnded?.(data.endedVote);
+            prevVotesByIncident.current.set(av.incidentId, {
+              yes: av.votesYes,
+              no: av.votesNo,
+              defense: av.defense,
+            });
           }
         }
+
+        // ---- Detect ENDED votes (previously active, now gone) ----
+        const newActiveIds = new Set(newActiveVotes.map((v) => v.incidentId));
+        for (const prevId of prevActiveIds.current) {
+          if (!newActiveIds.has(prevId)) {
+            // This vote was active before but is gone now — it ended.
+            // Clean up tracking.
+            prevVotesByIncident.current.delete(prevId);
+          }
+        }
+
+        // ---- Fire onVoteEnded for each newly-ended vote ----
+        for (const ev of newEndedVotes) {
+          if (!shownEndedIds.current.has(ev.incidentId)) {
+            shownEndedIds.current.add(ev.incidentId);
+            handlersRef.current.onVoteEnded?.(ev);
+          }
+        }
+
+        // ---- Update state ----
+        prevActiveIds.current = newActiveIds;
+        setActiveVotes(newActiveVotes);
+        setEndedVotes(newEndedVotes);
       } catch {
         // network error
       }
@@ -222,13 +244,18 @@ export function usePolling(
     [roomCode, memberId]
   );
 
+  // For backwards compat — dismiss the first ended vote
   const dismissEndedVote = useCallback(() => {
-    setEndedVote(null);
+    setEndedVotes((prev) => prev.slice(1));
   }, []);
 
   return {
+    // New multi-vote API
+    activeVotes,
+    endedVotes,
+    // Backwards-compat single-vote API
     activeVote,
-    endedVote,
+    endedVote: endedVotes[0] || null,
     startVote,
     castVote,
     submitDefense,

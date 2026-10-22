@@ -112,9 +112,13 @@ export function RoomView({ room, me }: Props) {
   // ---- Active vote modal (I'm a voter) ---------------------------------
   const [voteOpen, setVoteOpen] = useState(false);
   const [votedChoice, setVotedChoice] = useState<"kela" | "saeb" | null>(null);
+  // Per-incident voted choice tracking (for multi-vote support)
+  const [votedChoicesByIncident, setVotedChoicesByIncident] = useState<Record<string, "kela" | "saeb" | null>>({});
   // Track if the user manually closed the vote modal — prevents auto-reopening
   // while the vote is still active in the background. Reset when vote ends or a new vote starts.
   const userClosedVoteRef = useRef(false);
+  // Track which incidents the user has manually closed (multi-vote)
+  const userClosedIncidentsRef = useRef<Set<string>>(new Set());
 
   // ---- Quick Accuse picker (FAB) ----
   const [quickAccuseOpen, setQuickAccuseOpen] = useState(false);
@@ -222,7 +226,9 @@ export function RoomView({ room, me }: Props) {
   }, [play, incidents]);
 
   const {
-    activeVote, endedVote, startVote, castVote, submitDefense, dismissEndedVote,
+    activeVotes, endedVote, startVote, castVote, submitDefense, dismissEndedVote,
+    // Backwards-compat (singular, derived)
+    activeVote,
   } = usePolling(room.code, me.memberId, {
     onVoteStarted,
     onAccused,
@@ -234,20 +240,27 @@ export function RoomView({ room, me }: Props) {
     },
   });
 
-  // Sync modal state with polling state
+  // Sync votedChoice with per-incident tracking (for backwards-compat with
+  // components that still use the singular votedChoice for the primary vote)
+  useEffect(() => {
+    if (activeVote) {
+      setVotedChoice(votedChoicesByIncident[activeVote.incidentId] ?? activeVote.myVote ?? null);
+    } else {
+      setVotedChoice(null);
+    }
+  }, [activeVote, votedChoicesByIncident]);
+
+  // Sync modal state with polling state — auto-open the primary vote modal
+  // for new active votes (backwards-compat single-vote behavior)
   useEffect(() => {
     if (activeVote) {
       if (activeVote.isAccused) {
         // Only auto-open the accused modal if the user hasn't manually closed it.
-        // Without this, every 700ms poll (e.g., when vote tally changes) would
-        // reopen the modal even after the user dismissed it to read the dashboard.
         if (!accusedOpen && !userClosedAccusedRef.current) setAccusedOpen(true);
       } else {
         // Only auto-open the vote modal if the user hasn't manually closed it
-        // (they can close to keep browsing while vote runs in background)
         if (!voteOpen && !userClosedVoteRef.current) setVoteOpen(true);
       }
-      setVotedChoice(activeVote.myVote);
     } else {
       if (voteOpen) setVoteOpen(false);
       if (accusedOpen) setAccusedOpen(false);
@@ -374,26 +387,28 @@ export function RoomView({ room, me }: Props) {
     setAccuseReason("");
   }
 
-  async function handleCastVote(choice: "kela" | "saeb") {
-    if (!activeVote) return;
-    const r = await castVote(activeVote.incidentId, choice);
+  async function handleCastVote(choice: "kela" | "saeb", incidentId?: string) {
+    // incidentId is optional for backwards-compat — if not provided, use the
+    // primary active vote's incidentId.
+    const targetId = incidentId || activeVote?.incidentId;
+    if (!targetId) return;
+    const r = await castVote(targetId, choice);
     if (r.error) {
       toast.error(r.error);
       return;
     }
-    setVotedChoice(choice);
+    // Track per-incident voted choice
+    setVotedChoicesByIncident((prev) => ({ ...prev, [targetId]: choice }));
     // Play sound for MY vote
     if (choice === "kela") play("kela-vote");
     else play("saeb-vote");
     toast.success(`Voted ${choice === "kela" ? "🍌 Kela" : "🍎 Saeb"}`);
 
-    // If the server auto-closed the vote (this was the final vote), immediately
-    // close the modal and refresh data so the result modal pops up without
-    // waiting for the next 700ms poll cycle.
+    // If the server auto-closed the vote (this was the final vote OR deadline
+    // passed), refresh data so the result modal pops up. We don't close the
+    // vote modal here anymore since multiple votes may still be active — the
+    // polling hook will remove this vote from activeVotes[] when it ends.
     if (r.autoClosed) {
-      setVoteOpen(false);
-      setVotedChoice(null);
-      userClosedVoteRef.current = false;
       // Play the verdict sound immediately
       if (r.verdict === "kela") setTimeout(() => play("result-kela"), 400);
       else if (r.verdict === "saeb") setTimeout(() => play("result-saeb"), 400);
@@ -569,8 +584,13 @@ export function RoomView({ room, me }: Props) {
 
   async function handleSubmitDefense(defense: string) {
     if (!activeVote) return;
+    await handleSubmitDefenseForIncident(activeVote.incidentId, defense);
+  }
+
+  // Submit defense for a SPECIFIC incident (supports multiple simultaneous votes)
+  async function handleSubmitDefenseForIncident(incidentId: string, defense: string) {
     setSubmittingDefense(true);
-    const result = await submitDefense(activeVote.incidentId, defense);
+    const result = await submitDefense(incidentId, defense);
     setSubmittingDefense(false);
     if (result.error) {
       toast.error(result.error);
@@ -580,8 +600,9 @@ export function RoomView({ room, me }: Props) {
   }
 
   // Minister: force-settle an active vote
-  async function handleSettleVote(action: "kela" | "saeb" | "tie" | "cancel") {
-    if (!activeVote) return;
+  async function handleSettleVote(action: "kela" | "saeb" | "tie" | "cancel", incidentId?: string) {
+    const targetId = incidentId || activeVote?.incidentId;
+    if (!targetId) return;
     // Cancel is low-risk (no verdict, no fine) → skip confirm dialog for speed.
     // Force verdict (kela/saeb/tie) overrides the vote → keep the confirm.
     if (action !== "cancel") {
@@ -598,7 +619,7 @@ export function RoomView({ room, me }: Props) {
       const res = await fetch(`/api/rooms/${room.code}/votes/settle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: me.memberId, action }),
+        body: JSON.stringify({ memberId: me.memberId, action, incidentId: targetId }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -606,12 +627,14 @@ export function RoomView({ room, me }: Props) {
         return;
       }
       toast.success(action === "cancel" ? "Vote cancelled." : `Vote settled: ${action.toUpperCase()}`);
-      // Optimistic UI update: close the vote modal immediately so the user
-      // doesn't wait for the next 700ms poll cycle to detect the change.
-      setVoteOpen(false);
-      setVotedChoice(null);
-      userClosedVoteRef.current = false;
-      // Also refresh data so the cancelled incident appears in recent trials immediately.
+      // Clean up per-incident tracking for the settled vote
+      userClosedIncidentsRef.current.delete(targetId);
+      setVotedChoicesByIncident((prev) => {
+        const next = { ...prev };
+        delete next[targetId];
+        return next;
+      });
+      // Refresh data so the cancelled/settled incident updates immediately.
       refreshData();
     } catch (e: any) {
       toast.error(e?.message || "Failed to settle.");
@@ -1880,11 +1903,11 @@ export function RoomView({ room, me }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Active vote modal (I'm a voter) */}
+      {/* Active vote modal (I'm a voter) — primary vote (backwards-compat) */}
       <VoteModal
         open={voteOpen}
         activeVote={activeVote}
-        onVote={handleCastVote}
+        onVote={(choice) => handleCastVote(choice, activeVote?.incidentId)}
         votedChoice={votedChoice}
         isMinister={isMinister}
         onSettle={handleSettleVote}
@@ -1894,7 +1917,56 @@ export function RoomView({ room, me }: Props) {
         }}
       />
 
-      {/* Accused modal (I'm the accused — can add defense during voting) */}
+      {/* Additional vote modals for SIMULTANEOUS active votes where I'm a voter.
+          Renders one VoteModal per extra active vote (skipping the primary one
+          which is already rendered above). Each is independently controllable
+          via its own open-state tracked in openVoteIncidents set. */}
+      {activeVotes
+        .filter((av) => !av.isAccused && av.incidentId !== activeVote?.incidentId)
+        .map((av) => {
+          const isOpen = !userClosedIncidentsRef.current.has(av.incidentId);
+          const myChoice = votedChoicesByIncident[av.incidentId] ?? av.myVote ?? null;
+          return (
+            <VoteModal
+              key={av.incidentId}
+              open={isOpen}
+              activeVote={av}
+              onVote={(choice) => handleCastVote(choice, av.incidentId)}
+              votedChoice={myChoice}
+              isMinister={isMinister}
+              onSettle={(action, incidentId) => handleSettleVote(action, incidentId)}
+              onClose={() => {
+                userClosedIncidentsRef.current.add(av.incidentId);
+                // Force re-render
+                setVotedChoicesByIncident((prev) => ({ ...prev }));
+              }}
+            />
+          );
+        })}
+
+      {/* Additional accused modals for SIMULTANEOUS active votes where I'm accused. */}
+      {activeVotes
+        .filter((av) => av.isAccused && av.incidentId !== activeVote?.incidentId)
+        .map((av) => {
+          const isOpen = !userClosedIncidentsRef.current.has(av.incidentId);
+          return (
+            <AccusedModal
+              key={av.incidentId}
+              open={isOpen}
+              activeVote={av}
+              onSubmitDefense={(defense) => handleSubmitDefenseForIncident(av.incidentId, defense)}
+              submittingDefense={submittingDefense}
+              isMinister={isMinister}
+              onSettle={(action, incidentId) => handleSettleVote(action, incidentId)}
+              onClose={() => {
+                userClosedIncidentsRef.current.add(av.incidentId);
+                setVotedChoicesByIncident((prev) => ({ ...prev }));
+              }}
+            />
+          );
+        })}
+
+      {/* Accused modal (I'm the accused — can add defense during voting) — primary */}
       <AccusedModal
         open={accusedOpen}
         activeVote={activeVote}
