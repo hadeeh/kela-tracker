@@ -63,10 +63,10 @@ export async function POST(
     // Count actual Vote rows for this incident (most reliable source)
     const actualVoteCount = await db.vote.count({ where: { incidentId } });
 
-    // Re-fetch the incident to get the latest voteEndsAt
+    // Re-fetch the incident to get the latest voteEndsAt + createdAt
     const refreshed = await db.kelaIncident.findUnique({
       where: { id: incidentId },
-      select: { status: true, voteEndsAt: true, votesYes: true, votesNo: true },
+      select: { status: true, voteEndsAt: true, createdAt: true, votesYes: true, votesNo: true },
     });
 
     let autoClosed = false;
@@ -74,7 +74,12 @@ export async function POST(
 
     if (refreshed && refreshed.status === "voting") {
       const allVoted = eligibleVoters > 0 && actualVoteCount >= eligibleVoters;
-      const deadlinePassed = !!(refreshed.voteEndsAt && refreshed.voteEndsAt.getTime() < Date.now());
+      // Check deadline: voteEndsAt if set, otherwise fallback to createdAt + 5 min
+      const VOTE_DURATION_MS = 5 * 60 * 1000;
+      const deadlineTime = refreshed.voteEndsAt
+        ? refreshed.voteEndsAt.getTime()
+        : refreshed.createdAt.getTime() + VOTE_DURATION_MS;
+      const deadlinePassed = deadlineTime < Date.now();
 
       if (allVoted || deadlinePassed) {
         if (refreshed.votesYes > refreshed.votesNo) verdict = "kela";

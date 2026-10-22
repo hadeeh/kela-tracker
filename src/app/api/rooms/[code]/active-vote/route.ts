@@ -37,14 +37,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
     const now = new Date();
+    const VOTE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+    const deadlineCutoff = new Date(now.getTime() - VOTE_DURATION_MS);
 
     // ---- 1. Auto-close any expired votes ----
-    // Find all "voting" incidents whose voteEndsAt has passed.
+    // Find all "voting" incidents whose deadline has passed.
+    // Check BOTH voteEndsAt (new votes) AND createdAt + 5min (fallback for old
+    // votes that don't have voteEndsAt set, e.g., created before the schema migration).
     const expired = await db.kelaIncident.findMany({
       where: {
         roomId: room.id,
         status: "voting",
-        voteEndsAt: { lt: now },
+        OR: [
+          { voteEndsAt: { lt: now } },
+          { voteEndsAt: null, createdAt: { lt: deadlineCutoff } },
+        ],
       },
       include: {
         user: { select: { id: true, name: true } },

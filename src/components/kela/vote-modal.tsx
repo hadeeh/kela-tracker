@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, Clock } from "lucide-react";
@@ -53,6 +53,27 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
   const remainingMs = useCountdown(activeVote?.voteEndsAt ?? activeVote?.endsAt);
   const isUrgent = remainingMs > 0 && remainingMs < 60_000; // < 1 min left
   const isExpired = remainingMs === 0 && (activeVote?.voteEndsAt ?? activeVote?.endsAt);
+
+  // Trigger an immediate refresh when the countdown hits 0 so the server
+  // closes the vote ASAP (don't wait up to 700ms for the next poll cycle).
+  const expiredRef = useRef(false);
+  useEffect(() => {
+    if (isExpired && !expiredRef.current) {
+      expiredRef.current = true;
+      // Small delay to let the server process the expiry on its next poll
+      const id = setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("kela-refresh"));
+      }, 500);
+      return () => clearTimeout(id);
+    }
+  }, [isExpired]);
+
+  // Dynamic status text based on timer state
+  const statusText = isExpired
+    ? "Closing — deciding verdict..."
+    : isUrgent
+    ? "⚠️ Hurry! Less than 1 minute left"
+    : "Open — waiting for votes";
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && onClose) onClose(); }}>
@@ -141,7 +162,11 @@ export function VoteModal({ open, activeVote, onVote, votedChoice, isMinister, o
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Vote status</span>
-                <span className="font-semibold text-blue-600">Open — waiting for votes</span>
+                <span className={`font-semibold ${
+                  isExpired ? "text-red-600"
+                  : isUrgent ? "text-orange-600"
+                  : "text-blue-600"
+                }`}>{statusText}</span>
               </div>
               <div className="text-[10px] text-muted-foreground text-center">
                 {activeVote.voterCount} voted · Auto-closes at 5:00 or when all vote

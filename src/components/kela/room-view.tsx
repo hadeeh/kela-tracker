@@ -680,6 +680,17 @@ export function RoomView({ room, me }: Props) {
     requestNotificationPermission();
   }, []);
 
+  // Listen for "kela-refresh" events (e.g., when a vote countdown hits 0,
+  // the VoteModal dispatches this event to trigger an immediate data refresh
+  // so the server closes the expired vote ASAP).
+  useEffect(() => {
+    function handleRefresh() {
+      refreshData();
+    }
+    window.addEventListener("kela-refresh", handleRefresh);
+    return () => window.removeEventListener("kela-refresh", handleRefresh);
+  }, [refreshData]);
+
   async function handleLeave() {
     const ok = await confirm({
       title: "Leave this room?",
